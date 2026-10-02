@@ -1,7 +1,7 @@
 {
   "name": "@kibuniverse/domino",
   "type": "module",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Select React elements in your browser and edit their source with a local coding agent.",
   "license": "MIT",
   "repository": {
