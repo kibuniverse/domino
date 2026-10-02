@@ -2,7 +2,7 @@
 
 在 React 开发页面选择元素，描述修改要求，由本地 Codex 或 Claude Code 修改源码，并通过 Vite 更新页面。
 
-对外是一个包 `@zephry/domino`，内部按编译转换、浏览器 runtime、任务核心和 Agent Adapter 分模块，分别通过官方 `@openai/codex-sdk` 和 `@anthropic-ai/claude-agent-sdk` 调用 Codex、Claude Code。当前尚未发布到 npm。
+对外是一个包 `@kibuniverse/domino`，内部按编译转换、浏览器 runtime、任务核心和 Agent Adapter 分模块，分别通过官方 `@openai/codex-sdk` 和 `@anthropic-ai/claude-agent-sdk` 调用 Codex、Claude Code。当前尚未发布到 npm。
 
 ## 功能
 
@@ -58,7 +58,7 @@ Agent 路由默认只接受 loopback 连接，检查精确 Host/Origin，并通�
 pnpm install
 pnpm build
 npm pack
-# 在目标项目安装生成的 zephry-domino-0.1.0.tgz
+# 在目标项目安装生成的 kibuniverse-domino-0.1.0.tgz
 ```
 
 ### 接入 Vite
@@ -66,7 +66,7 @@ npm pack
 ```ts
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { domino } from '@zephry/domino/vite'
+import { domino } from '@kibuniverse/domino/vite'
 
 export default defineConfig({
   plugins: [
@@ -180,7 +180,7 @@ pnpm example:claude  # 需安装并登录 Claude Code 2.1.287+
 
 ### 独立 React 接入项目
 
-仓库同层级的 `../domino-react-app` 是完整的 React + TypeScript + Vite 工作台，具有独立 `package.json`、锁文件、业务源码和构建配置。它安装 `vendor/zephry-domino-0.1.0.tgz`，验证真实 npm 包接入，不使用工具源码 alias。
+仓库同层级的 `../domino-react-app` 是完整的 React + TypeScript + Vite 工作台，具有独立 `package.json`、锁文件、业务源码和构建配置。它安装 `vendor/kibuniverse-domino-0.1.0.tgz`，验证真实 npm 包接入，不使用工具源码 alias。
 
 ```bash
 pnpm --dir ../domino-react-app install
@@ -198,7 +198,7 @@ pnpm --dir ../domino-react-app build
 ```bash
 pnpm build
 npm pack --pack-destination ../domino-react-app/vendor
-pnpm --dir ../domino-react-app add -D @zephry/domino@file:vendor/zephry-domino-0.1.0.tgz
+pnpm --dir ../domino-react-app add -D @kibuniverse/domino@file:vendor/kibuniverse-domino-0.1.0.tgz
 ```
 
 ### 测试与验证
@@ -224,7 +224,7 @@ node scripts/react-project-smoke.mjs ../domino-react-app http://127.0.0.1:5180/ 
 批准是人工步骤，需要支持 staging 的 npm CLI：
 
 ```bash
-npm stage list @zephry/domino
+npm stage list @kibuniverse/domino
 npm stage view <stage-id>
 npm stage approve <stage-id>
 ```
@@ -235,8 +235,12 @@ npm stage approve <stage-id>
 
 npm 的 Trusted Publisher 配置入口只在**已存在**的包上出现，而 OIDC 又要求先有该配置，所以首个版本必须手动发布：
 
-1. `@zephry` 必须是你的 npm organization——scoped 包要求先拥有该 scope。在 npmjs.com 创建 org 并确认账号有发布权限；在此之前 `@zephry/domino` 无法发布。
+1. `@kibuniverse` npm organization 必须存在，且你的账号在其中拥有发布权限。scoped 包要求先拥有该 scope。
 2. 手动发布首个版本（需账号级 2FA）：`npm login` 后 `npm publish --access public`。
+
+   > 发布报 `E404 ... PUT https://registry.npmjs.org/@scope%2fname` 时，先查 `npm whoami` 而不是怀疑包名：registry 对**未认证**的创建请求一律返回 404 而非 401，以免泄露 scope 是否存在。granular access token 最长只有 90 天，过期就会走到这个分支，重新 `npm login` 即可。
+   >
+   > 反向也成立：发布成功后**立刻**查包可能仍返回 404，那是 registry 的 CDN 缓存（`cache-control: max-age=300`），不是发布失败。以 `~/.npm/_logs/` 中该次 `PUT` 的状态码为准，或加 `?t=$(date +%s)` 绕过缓存。
 3. 在包页面 **Settings → Trusted publishing** 添加 GitHub Actions：
 
    | 字段 | 值 |

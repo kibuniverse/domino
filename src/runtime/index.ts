@@ -11,6 +11,15 @@ export function reportVersion(file: string, version: string) {
 }
 
 const labels: Record<Task['status'], string> = { queued: '排队中', running: 'Agent 执行中', cancelling: '正在停止', validating: '检查并应用', completed: '已完成', completed_with_issues: '完成但存在问题', failed: '失败', cancelled: '已取消' }
+// crypto.randomUUID is secure-context only, so LAN HTTP access falls back to getRandomValues.
+const uuid = () => {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  bytes[6] = (bytes[6] & 0x0f) | 0x40
+  bytes[8] = (bytes[8] & 0x3f) | 0x80
+  const hex = [...bytes].map(byte => byte.toString(16).padStart(2, '0')).join('')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
 export function mountDomino(config: RuntimeConfig) {
   if (document.querySelector('[data-domino-host]')) return
   const host = document.createElement('div')
@@ -292,7 +301,7 @@ export function mountDomino(config: RuntimeConfig) {
   const submit = () => {
     if (!context || stale || !ready || !diagnostic.ready || !input.value.trim() || [...pending.values()].some(request => request.type === 'task.create')) return
     lastInstruction = input.value.trim()
-    send({ type: 'task.create', requestId: crypto.randomUUID(), context: { ...context, instruction: lastInstruction, scope: scope.value } }, true)
+    send({ type: 'task.create', requestId: uuid(), context: { ...context, instruction: lastInstruction, scope: scope.value } }, true)
     input.value = ''
   }
   dock.onclick = () => { if (panel.hidden) openPanel(); else closePanel() }
@@ -301,8 +310,8 @@ export function mountDomino(config: RuntimeConfig) {
   progressHead.onclick = () => { progressOpen = !progressOpen; renderTask() }
   get<HTMLElement>('.submit').onclick = submit
   input.onkeydown = event => { if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); submit() } }
-  get<HTMLElement>('.cancel').onclick = () => { if (activeId) send({ type: 'task.cancel', requestId: crypto.randomUUID(), taskId: activeId }) }
-  get<HTMLElement>('.undo').onclick = () => { if (activeId) send({ type: 'task.undo', requestId: crypto.randomUUID(), taskId: activeId }) }
+  get<HTMLElement>('.cancel').onclick = () => { if (activeId) send({ type: 'task.cancel', requestId: uuid(), taskId: activeId }) }
+  get<HTMLElement>('.undo').onclick = () => { if (activeId) send({ type: 'task.undo', requestId: uuid(), taskId: activeId }) }
   history.onchange = () => { activeId = history.value; renderTask() }
   input.oninput = updateSubmit
   const observer = new MutationObserver(() => {

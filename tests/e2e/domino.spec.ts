@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react'
 import { domino } from '../../dist/vite.mjs'
 import { mkdtemp, cp, readFile, writeFile, rm, readdir, realpath } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import { tmpdir } from 'node:os'
+import { networkInterfaces, tmpdir } from 'node:os'
 import { WebSocket } from 'ws'
 import type { ViteDevServer } from 'vite'
 
@@ -222,4 +222,34 @@ test('production bundles contain no source markers, runtime, or task transport',
   expect(bundle).not.toContain('data-va-id')
   expect(bundle).not.toContain('__domino/ws')
   expect(bundle).not.toContain('mountDomino')
+})
+test.describe('LAN access from a non-secure origin', () => {
+  let lanRoot: string
+  let lanServer: ViteDevServer | undefined
+  let lanUrl = ''
+  test.beforeAll(async () => {
+    const address = Object.values(networkInterfaces()).flat().find(entry => entry?.family === 'IPv4' && !entry.internal)?.address
+    if (!address) return
+    lanRoot = await realpath(await mkdtemp(join(tmpdir(), 'domino-lan-')))
+    await cp(resolve('tests/e2e/fixtures'), lanRoot, { recursive: true })
+    lanServer = await createServer({ root: lanRoot, configFile: false, resolve: { alias: { react: resolve('node_modules/react'), 'react-dom': resolve('node_modules/react-dom') } }, plugins: [domino({ agent: adapter, allowLan: true }), react()], server: { host: address, port: 0, fs: { allow: [lanRoot, process.cwd()] } } })
+    await lanServer.listen()
+    lanUrl = `http://${address}:${(lanServer.httpServer!.address() as import('node:net').AddressInfo).port}/`
+  })
+  test.afterAll(async () => { await lanServer?.close(); if (lanRoot) await rm(lanRoot, { recursive: true, force: true }) })
+  test('HTTP over a LAN address has no crypto.randomUUID and still submits', async ({ page }) => {
+    test.skip(!lanUrl, 'no non-internal IPv4 address available')
+    const errors: string[] = []
+    page.on('pageerror', error => errors.push(error.message))
+    await page.goto(lanUrl)
+    expect(await page.evaluate(() => ({ secure: window.isSecureContext, randomUUID: typeof crypto.randomUUID, getRandomValues: typeof crypto.getRandomValues }))).toEqual({ secure: false, randomUUID: 'undefined', getRandomValues: 'function' })
+    await page.getByRole('button', { name: '打开 domino' }).click()
+    await expect(page.locator('.connection')).toContainText('测试 Agent')
+    await page.getByRole('button', { name: '选择/切换元素' }).click()
+    await page.locator('.create-button').click()
+    await page.getByLabel('修改要求').fill('修改按钮文字和颜色')
+    await page.getByRole('button', { name: '发送' }).click()
+    await expect(page.locator('.task-status')).toHaveText('已完成')
+    expect(errors).toEqual([])
+  })
 })
