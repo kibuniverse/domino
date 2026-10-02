@@ -48,6 +48,7 @@ jobs:
       # auth is OIDC trusted publishing, and the SLSA provenance attestation is attached
       # automatically for a public package published from a public repo.
       - name: Stage npm package
+        id: stage
         run: |
           set -euo pipefail
           name=$(node -p 'require("./package.json").name')
@@ -55,6 +56,7 @@ jobs:
           printf '%s\n' "$out"
           stage_id=$(printf '%s' "$out" | jq -r --arg n "$name" '(.[$n] // .) | .stageId // empty')
           [ -n "$stage_id" ] || { echo "::error::npm did not return a stageId; check the staging queue before retrying"; exit 1; }
+          echo "stage_id=$stage_id" >> "$GITHUB_OUTPUT"
           {
             echo "## npm package staged — awaiting approval"
             echo
@@ -68,6 +70,22 @@ jobs:
             echo "An OIDC token cannot approve; a maintainer must log in and complete 2FA."
           } >> "$GITHUB_STEP_SUMMARY"
       # Created only after staging succeeds, so a failed stage leaves no Release.
-      - run: gh release create "$GITHUB_REF_NAME" --generate-notes
+      # gh cannot combine --notes with --generate-notes, so the changelog is fetched
+      # separately and the staging notice is prepended. Keeping the notice in the
+      # Release body matters because the Release exists before the package is public.
+      - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          STAGE_ID: ${{ steps.stage.outputs.stage_id }}
+        run: |
+          set -euo pipefail
+          notes=$(gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" -f tag_name="$GITHUB_REF_NAME" --jq .body)
+          {
+            echo "> **npm 状态（打 tag 时）**：本版本已提交 npm 暂存，**尚未公开**。"
+            echo "> 需维护者登录 npmjs.com 审核并通过 2FA 批准后，才会落到 \`latest\`；"
+            echo "> 此 Release 的存在不代表 npm 审批已完成。"
+            echo "> Stage ID：\`$STAGE_ID\`（也可用 \`npm stage approve $STAGE_ID\` 批准）。"
+            echo
+            echo "$notes"
+          } > "$RUNNER_TEMP/release-notes.md"
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/release-notes.md"

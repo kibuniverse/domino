@@ -221,6 +221,8 @@ node scripts/react-project-smoke.mjs ../domino-react-app http://127.0.0.1:5180/ 
 
 发布由 `pnpm release`（bumpp）打出的 `v*` 标签触发。CI 不直接发布，而是把版本推入 npm 暂存区，**包不会公开**，直到维护者本人登录 npmjs.com 审核并用 2FA 批准。OIDC token 只能执行 `npm stage publish`，无法执行 `npm stage approve`，因此审批无法被工作流自动化。工作流使用 GitHub 自动提供的 `GITHUB_TOKEN` 创建 Release，不需要 `NPM_TOKEN`。
 
+GitHub Release 在暂存成功后就会创建，**早于包公开**。因此 Release 正文开头会带上 npm 暂存状态和 Stage ID——Release 存在不代表 npm 审批已完成。
+
 批准是人工步骤，需要支持 staging 的 npm CLI：
 
 ```bash
