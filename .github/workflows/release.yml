@@ -7,12 +7,12 @@ on:
 
 permissions:
   contents: write # create the GitHub Release
-  id-token: write # npm provenance (and OIDC trusted publishing if configured)
+  id-token: write # OIDC trusted publishing: npm mints a short-lived publish credential
 
 jobs:
   publish:
     runs-on: ubuntu-latest
-    environment: npm # optional manual-approval gate; configure in repo Settings > Environments
+    environment: npm # must match "Environment name" in the npm trusted publisher settings
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -20,14 +20,18 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+          # Do not add registry-url: it writes an empty _authToken line into .npmrc,
+          # which makes npm skip OIDC and fail with ENEEDAUTH.
+      # Node 22 bundles npm 10.9.x; trusted publishing requires npm >= 11.5.1.
+      - run: npm install -g npm@^11.15.0
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
       # npm (not pnpm) publish: provenance is reliable there. prepublishOnly re-runs pnpm check.
-      # Alternative to NPM_TOKEN: register this workflow as an OIDC trusted publisher
-      # in npm settings, then drop NODE_AUTH_TOKEN entirely.
-      - run: npm publish --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # Auth is OIDC trusted publishing, so there is no NPM_TOKEN. Provenance is automatic
+      # for a public package published from a public repo; --provenance is not needed.
+      # Requires: npmjs.com > package Settings > Trusted publishing configured with
+      # owner kibuniverse, repo domino, workflow release.yml, environment npm.
+      - run: npm publish
       - run: gh release create "$GITHUB_REF_NAME" --generate-notes
         env:
           GH_TOKEN: ${{ github.token }}
