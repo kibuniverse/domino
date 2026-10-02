@@ -1,0 +1,33 @@
+# Triggered by `pnpm release` (bumpp): commit + tag vX.Y.Z + push.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write # create the GitHub Release
+  id-token: write # npm provenance (and OIDC trusted publishing if configured)
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: npm # optional manual-approval gate; configure in repo Settings > Environments
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      # npm (not pnpm) publish: provenance is reliable there. prepublishOnly re-runs pnpm check.
+      # Alternative to NPM_TOKEN: register this workflow as an OIDC trusted publisher
+      # in npm settings, then drop NODE_AUTH_TOKEN entirely.
+      - run: npm publish --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - run: gh release create "$GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}

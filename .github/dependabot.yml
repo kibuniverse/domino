@@ -1,0 +1,17 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    # Agent SDK pins are deliberate (compat-verified per release); group their bumps
+    # so each PR carries the full SDK + test validation.
+    groups:
+      agent-sdks:
+        patterns:
+          - '@anthropic-ai/*'
+          - '@openai/*'
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

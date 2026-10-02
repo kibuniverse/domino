@@ -1,0 +1,115 @@
+{
+  "name": "@zephry/domino",
+  "type": "module",
+  "version": "0.1.0",
+  "description": "Select React elements in your browser and edit their source with a local coding agent.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kibuniverse/domino.git"
+  },
+  "bugs": "https://github.com/kibuniverse/domino/issues",
+  "homepage": "https://github.com/kibuniverse/domino#readme",
+  "keywords": [
+    "vite",
+    "vite-plugin",
+    "react",
+    "codex",
+    "claude",
+    "agent",
+    "coding-agent",
+    "dx"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "packageManager": "pnpm@10.6.3",
+  "volta": {
+    "node": "22.23.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "vite": "^8.0.0"
+  },
+  "peerDependenciesMeta": {
+    "vite": {
+      "optional": true
+    }
+  },
+  "optionalDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.287",
+    "@openai/codex-sdk": "0.160.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    },
+    "./vite": {
+      "types": "./dist/vite.d.mts",
+      "import": "./dist/vite.mjs"
+    },
+    "./core": {
+      "types": "./dist/core.d.mts",
+      "import": "./dist/core.mjs"
+    },
+    "./transform": {
+      "types": "./dist/transform.d.mts",
+      "import": "./dist/transform.mjs"
+    },
+    "./agents/codex": {
+      "types": "./dist/codex.d.mts",
+      "import": "./dist/codex.mjs"
+    },
+    "./agents/claude": {
+      "types": "./dist/claude.d.mts",
+      "import": "./dist/claude.mjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "pnpm build && playwright test",
+    "example": "pnpm build && vite examples/react --host 127.0.0.1",
+    "example:claude": "pnpm build && DOMINO_AGENT=claude vite examples/react --host 127.0.0.1",
+    "check": "pnpm typecheck && pnpm test && pnpm build && pnpm lint:pub",
+    "typecheck": "tsc --noEmit",
+    "lint:pub": "publint && attw --pack . --profile esm-only",
+    "release": "bumpp",
+    "prepublishOnly": "pnpm run check"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
+    "@jridgewell/trace-mapping": "^0.3.31",
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^26.1.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/ws": "^8.18.2",
+    "@vitejs/plugin-react": "^6.0.0",
+    "bumpp": "^11.1.0",
+    "publint": "^0.3.25",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "tsdown": "^0.22.5",
+    "typescript": "^7.0.2",
+    "unrun": "^0.3.1",
+    "vite": "^8.3.0",
+    "vitest": "^4.1.10"
+  },
+  "dependencies": {
+    "@babel/parser": "^7.29.0",
+    "diff": "^8.0.0",
+    "magic-string": "^0.30.0",
+    "ws": "^8.18.0"
+  }
+}
