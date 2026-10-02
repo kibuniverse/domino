@@ -1,4 +1,8 @@
 # Triggered by `pnpm release` (bumpp): commit + tag vX.Y.Z + push.
+#
+# Publishes to npm staging, not directly. The version is not public until a
+# maintainer reviews it and approves the stage with 2FA. Approval cannot be
+# automated: an OIDC token may only run `npm stage publish`, never `npm stage approve`.
 name: Release
 
 on:
@@ -6,32 +10,64 @@ on:
     tags: ['v*']
 
 permissions:
-  contents: write # create the GitHub Release
-  id-token: write # OIDC trusted publishing: npm mints a short-lived publish credential
+  contents: read
+
+concurrency:
+  group: npm-release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   publish:
     runs-on: ubuntu-latest
-    environment: npm # must match "Environment name" in the npm trusted publisher settings
+    timeout-minutes: 20
+    # Must match "Environment name" in the npm trusted publisher settings: fill in
+    # `npm` there, not blank. GitHub puts the environment in the OIDC token and npm
+    # compares it, so a mismatch is rejected.
+    environment: npm
+    permissions:
+      contents: write # create the GitHub Release
+      id-token: write # OIDC trusted publishing: npm mints a short-lived credential
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          node-version: 22
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
           cache: pnpm
           # Do not add registry-url: it writes an empty _authToken line into .npmrc,
-          # which makes npm skip OIDC and fail with ENEEDAUTH.
-      # Node 22 bundles npm 10.9.x; trusted publishing requires npm >= 11.5.1.
-      - run: npm install -g npm@^11.15.0
+          # which makes npm skip OIDC and fall back to token auth, failing with ENEEDAUTH.
+      # Staged publishing needs npm >= 11.20.0; Node 22 bundles 10.9.x.
+      - run: npm install -g npm@11.20.0
       - run: pnpm install --frozen-lockfile
+      # Also builds dist/, so the stage step below can run with --ignore-scripts.
+      # .npmrc pins use-node-version=22.23.3, so check/build runs on that Node.
       - run: pnpm check
-      # npm (not pnpm) publish: provenance is reliable there. prepublishOnly re-runs pnpm check.
-      # Auth is OIDC trusted publishing, so there is no NPM_TOKEN. Provenance is automatic
-      # for a public package published from a public repo; --provenance is not needed.
-      # Requires: npmjs.com > package Settings > Trusted publishing configured with
-      # owner kibuniverse, repo domino, workflow release.yml, environment npm.
-      - run: npm publish
+      # npm (not pnpm) publishes: provenance is reliable there. There is no NPM_TOKEN;
+      # auth is OIDC trusted publishing, and the SLSA provenance attestation is attached
+      # automatically for a public package published from a public repo.
+      - name: Stage npm package
+        run: |
+          set -euo pipefail
+          name=$(node -p 'require("./package.json").name')
+          out=$(npm stage publish --access public --tag latest --ignore-scripts --json --registry https://registry.npmjs.org/)
+          printf '%s\n' "$out"
+          stage_id=$(printf '%s' "$out" | jq -r --arg n "$name" '(.[$n] // .) | .stageId // empty')
+          [ -n "$stage_id" ] || { echo "::error::npm did not return a stageId; check the staging queue before retrying"; exit 1; }
+          {
+            echo "## npm package staged — awaiting approval"
+            echo
+            echo "| | |"
+            echo "| --- | --- |"
+            echo "| Package | \`$name\` |"
+            echo "| dist-tag | \`latest\` (immutable once staged) |"
+            echo "| Stage ID | \`$stage_id\` |"
+            echo
+            echo "Not public yet. Review and approve with 2FA: \`npm stage view $stage_id\` then \`npm stage approve $stage_id\`."
+            echo "An OIDC token cannot approve; a maintainer must log in and complete 2FA."
+          } >> "$GITHUB_STEP_SUMMARY"
+      # Created only after staging succeeds, so a failed stage leaves no Release.
       - run: gh release create "$GITHUB_REF_NAME" --generate-notes
         env:
           GH_TOKEN: ${{ github.token }}
