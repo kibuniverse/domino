@@ -1,38 +1,62 @@
-import { test, expect } from '@playwright/test'
-import { createServer, build } from 'vite'
-import react from '@vitejs/plugin-react'
-import { domino } from '../../dist/vite.mjs'
 import { mkdtemp, cp, readFile, writeFile, rm, readdir, realpath } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
 import { networkInterfaces, tmpdir } from 'node:os'
-import { WebSocket } from 'ws'
+import { join, resolve } from 'node:path'
+
+import { test, expect } from '@playwright/test'
+import react from '@vitejs/plugin-react'
+import { createServer, build } from 'vite'
 import type { ViteDevServer } from 'vite'
+import { WebSocket } from 'ws'
+
+import { domino } from '../../dist/vite.mjs'
 
 let root: string
 let server: ViteDevServer
 let url: string
-import { testAgent as adapter, choose as chooseTarget, submit, verifyEditAndUndo } from './helpers/workflow'
+import {
+  testAgent as adapter,
+  choose as chooseTarget,
+  submit,
+  verifyEditAndUndo,
+} from './helpers/workflow'
 test.beforeAll(async () => {
   root = await realpath(await mkdtemp(join(tmpdir(), 'domino-browser-')))
   // Use fixed fixtures: the interactive example can contain real user edits.
   await cp(resolve('tests/e2e/fixtures'), root, { recursive: true })
   // React is resolved from this project's installed dependencies; no links enter editable dirs.
-  server = await createServer({ root, configFile: false, base: '/preview/', resolve: { alias: { react: resolve('node_modules/react'), 'react-dom': resolve('node_modules/react-dom') } }, plugins: [domino({ agent: adapter }), react()], server: { host: '127.0.0.1', port: 0, fs: { allow: [root, process.cwd()] } } })
+  server = await createServer({
+    root,
+    configFile: false,
+    base: '/preview/',
+    resolve: {
+      alias: {
+        react: resolve('node_modules/react'),
+        'react-dom': resolve('node_modules/react-dom'),
+      },
+    },
+    plugins: [domino({ agent: adapter }), react()],
+    server: { host: '127.0.0.1', port: 0, fs: { allow: [root, process.cwd()] } },
+  })
   await server.listen()
   const address = server.httpServer!.address() as import('node:net').AddressInfo
   url = `http://127.0.0.1:${address.port}/preview/`
 })
-test.afterAll(async () => { await server?.close(); if (root) await rm(root, { recursive: true, force: true }) })
+test.afterAll(async () => {
+  await server?.close()
+  if (root) await rm(root, { recursive: true, force: true })
+})
 
 const choose = (page: import('@playwright/test').Page) => chooseTarget(page, url)
 test('selection → source edit → diff → HMR → conditional undo', async ({ page }) => {
   const errors: string[] = []
-  page.on('pageerror', error => errors.push(error.message))
+  page.on('pageerror', (error) => errors.push(error.message))
   await choose(page)
   await verifyEditAndUndo(page)
   expect(errors).toEqual([])
 })
-test('invalid candidate remains a visible diff and never changes the original page', async ({ page }) => {
+test('invalid candidate remains a visible diff and never changes the original page', async ({
+  page,
+}) => {
   await choose(page)
   await submit(page, '产生语法错误')
   await expect(page.locator('.task-status')).toHaveText('失败')
@@ -51,7 +75,7 @@ test('cancel stops the agent and leaves the original page intact', async ({ page
 })
 test('Space and Alt+Space open the editor directly', async ({ page }) => {
   const errors: string[] = []
-  page.on('pageerror', error => errors.push(error.message))
+  page.on('pageerror', (error) => errors.push(error.message))
   await page.goto(url)
   await page.keyboard.press('Space')
   await expect(page.getByLabel('修改要求')).toBeVisible()
@@ -63,7 +87,9 @@ test('Space and Alt+Space open the editor directly', async ({ page }) => {
   expect(errors).toEqual([])
 })
 for (const shortcut of ['Space', 'Alt+Space']) {
-  test(`${shortcut} selects the hovered element and keeps it fixed while typing`, async ({ page }) => {
+  test(`${shortcut} selects the hovered element and keeps it fixed while typing`, async ({
+    page,
+  }) => {
     await page.goto(url)
     const button = page.locator('.create-button')
     await button.hover()
@@ -107,9 +133,11 @@ test('the shortcut fixes the hovered target during manual picking', async ({ pag
   await expect(page.getByLabel('修改要求')).toBeFocused()
   await expect(page.locator('.counter')).toHaveText('已点击 0 次')
 })
-test('hover selection resolves an unmarked child to its source-marked ancestor', async ({ page }) => {
+test('hover selection resolves an unmarked child to its source-marked ancestor', async ({
+  page,
+}) => {
   await page.goto(url)
-  await page.locator('.create-button').evaluate(button => {
+  await page.locator('.create-button').evaluate((button) => {
     const child = document.createElement('span')
     child.textContent = button.textContent
     button.replaceChildren(child)
@@ -122,10 +150,12 @@ test('hover selection resolves an unmarked child to its source-marked ancestor',
   await page.getByLabel('修改要求').fill('修改父元素')
   await expect(page.getByRole('button', { name: '发送' })).toBeEnabled()
 })
-test('hover selection resolves the current DOM at the pointer after replacement', async ({ page }) => {
+test('hover selection resolves the current DOM at the pointer after replacement', async ({
+  page,
+}) => {
   await page.goto(url)
   await page.locator('.create-button').hover()
-  await page.locator('.create-button').evaluate(button => {
+  await page.locator('.create-button').evaluate((button) => {
     const replacement = button.cloneNode(true) as HTMLElement
     replacement.textContent = '替换后的按钮'
     button.replaceWith(replacement)
@@ -152,15 +182,21 @@ test('hovering empty page space does not select the document or domino UI', asyn
 test('rejects cross-origin websocket connections and unauthenticated tasks', async () => {
   const endpoint = url.replace('http', 'ws') + '__domino/ws'
   const hostile = new WebSocket(endpoint, { origin: 'http://evil.example' })
-  const status = await new Promise<number>(resolve => {
-    hostile.on('unexpected-response', (_, response) => { resolve(response.statusCode!); response.resume(); hostile.terminate() })
+  const status = await new Promise<number>((resolve) => {
+    hostile.on('unexpected-response', (_, response) => {
+      resolve(response.statusCode!)
+      response.resume()
+      hostile.terminate()
+    })
     hostile.on('error', () => {})
   })
   expect(status).toBe(403)
   const unauthenticated = new WebSocket(endpoint, { origin: new URL(url).origin })
   unauthenticated.on('error', () => {})
-  const code = await new Promise<number>(resolve => {
-    unauthenticated.on('open', () => unauthenticated.send(JSON.stringify({ type: 'task.create', requestId: 'malicious-0001' })))
+  const code = await new Promise<number>((resolve) => {
+    unauthenticated.on('open', () =>
+      unauthenticated.send(JSON.stringify({ type: 'task.create', requestId: 'malicious-0001' })),
+    )
     unauthenticated.on('close', resolve)
   })
   expect(code).toBe(1008)
@@ -169,19 +205,43 @@ test('task journals cannot be retrieved through Vite file handlers', async ({ re
   const journal = 'http-deny-test.json'
   const file = join(root, '.domino/tasks', journal)
   await writeFile(file, JSON.stringify({ before: 'private source' }))
-  const paths = [`.domino/tasks/${journal}`, `%2Edomino/tasks/${journal}?raw`, `@fs/${root}/.domino/tasks/${journal}?import`]
+  const paths = [
+    `.domino/tasks/${journal}`,
+    `%2Edomino/tasks/${journal}?raw`,
+    `@fs/${root}/.domino/tasks/${journal}?import`,
+  ]
   try {
     for (const path of paths) {
       const response = await request.get(url + path)
       expect(response.status()).toBe(403)
       expect(await response.text()).toBe('Forbidden')
     }
-  } finally { await rm(file) }
+  } finally {
+    await rm(file)
+  }
 })
 test('production bundles contain no source markers, runtime, or task transport', async () => {
-  await build({ root, configFile: false, resolve: { alias: { react: resolve('node_modules/react'), 'react-dom': resolve('node_modules/react-dom') } }, plugins: [domino({ agent: adapter }), react()], build: { outDir: join(root, 'production') }, logLevel: 'error' })
+  await build({
+    root,
+    configFile: false,
+    resolve: {
+      alias: {
+        react: resolve('node_modules/react'),
+        'react-dom': resolve('node_modules/react-dom'),
+      },
+    },
+    plugins: [domino({ agent: adapter }), react()],
+    build: { outDir: join(root, 'production') },
+    logLevel: 'error',
+  })
   const assets = await readdir(join(root, 'production/assets'))
-  const bundle = (await Promise.all(assets.filter(file => file.endsWith('.js')).map(file => readFile(join(root, 'production/assets', file), 'utf8')))).join('\n')
+  const bundle = (
+    await Promise.all(
+      assets
+        .filter((file) => file.endsWith('.js'))
+        .map((file) => readFile(join(root, 'production/assets', file), 'utf8')),
+    )
+  ).join('\n')
   expect(bundle).not.toContain('data-va-id')
   expect(bundle).not.toContain('__domino/ws')
   expect(bundle).not.toContain('mountDomino')
@@ -191,21 +251,43 @@ test.describe('LAN access from a non-secure origin', () => {
   let lanServer: ViteDevServer | undefined
   let lanUrl = ''
   test.beforeAll(async () => {
-    const address = Object.values(networkInterfaces()).flat().find(entry => entry?.family === 'IPv4' && !entry.internal)?.address
+    const address = Object.values(networkInterfaces())
+      .flat()
+      .find((entry) => entry?.family === 'IPv4' && !entry.internal)?.address
     if (!address) return
     lanRoot = await realpath(await mkdtemp(join(tmpdir(), 'domino-lan-')))
     await cp(resolve('tests/e2e/fixtures'), lanRoot, { recursive: true })
-    lanServer = await createServer({ root: lanRoot, configFile: false, resolve: { alias: { react: resolve('node_modules/react'), 'react-dom': resolve('node_modules/react-dom') } }, plugins: [domino({ agent: adapter, allowLan: true }), react()], server: { host: address, port: 0, fs: { allow: [lanRoot, process.cwd()] } } })
+    lanServer = await createServer({
+      root: lanRoot,
+      configFile: false,
+      resolve: {
+        alias: {
+          react: resolve('node_modules/react'),
+          'react-dom': resolve('node_modules/react-dom'),
+        },
+      },
+      plugins: [domino({ agent: adapter, allowLan: true }), react()],
+      server: { host: address, port: 0, fs: { allow: [lanRoot, process.cwd()] } },
+    })
     await lanServer.listen()
     lanUrl = `http://${address}:${(lanServer.httpServer!.address() as import('node:net').AddressInfo).port}/`
   })
-  test.afterAll(async () => { await lanServer?.close(); if (lanRoot) await rm(lanRoot, { recursive: true, force: true }) })
+  test.afterAll(async () => {
+    await lanServer?.close()
+    if (lanRoot) await rm(lanRoot, { recursive: true, force: true })
+  })
   test('HTTP over a LAN address has no crypto.randomUUID and still submits', async ({ page }) => {
     test.skip(!lanUrl, 'no non-internal IPv4 address available')
     const errors: string[] = []
-    page.on('pageerror', error => errors.push(error.message))
+    page.on('pageerror', (error) => errors.push(error.message))
     await page.goto(lanUrl)
-    expect(await page.evaluate(() => ({ secure: window.isSecureContext, randomUUID: typeof crypto.randomUUID, getRandomValues: typeof crypto.getRandomValues }))).toEqual({ secure: false, randomUUID: 'undefined', getRandomValues: 'function' })
+    expect(
+      await page.evaluate(() => ({
+        secure: window.isSecureContext,
+        randomUUID: typeof crypto.randomUUID,
+        getRandomValues: typeof crypto.getRandomValues,
+      })),
+    ).toEqual({ secure: false, randomUUID: 'undefined', getRandomValues: 'function' })
     await page.getByRole('button', { name: '打开 domino' }).click()
     await expect(page.locator('.connection')).toContainText('测试 Agent')
     await page.getByRole('button', { name: '选择/切换元素' }).click()

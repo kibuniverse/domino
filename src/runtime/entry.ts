@@ -1,8 +1,8 @@
-import { hot, setHot } from './lifecycle'
 import type { HotBridge } from './hot-types'
-import { initializeVersions } from './versions'
+import { hot, setHot } from './lifecycle'
 import { mountRuntime } from './mount'
 import type { RuntimeConfig } from './types'
+import { initializeVersions } from './versions'
 export { reportVersion } from './versions'
 
 let currentConfig: RuntimeConfig | undefined
@@ -12,13 +12,16 @@ export function mountDomino(config: RuntimeConfig) {
   currentConfig = config
   runtime = mountRuntime(config, hot?.data.memory)
 }
-function stop() { runtime?.dispose(); window.removeEventListener('pagehide', stop) }
+function stop() {
+  runtime?.dispose()
+  window.removeEventListener('pagehide', stop)
+}
 export function initializeRuntime(context?: HotBridge) {
   setHot(context)
   initializeVersions(hot)
   window.addEventListener('pagehide', stop)
   if (hot) {
-    hot.dispose(data => {
+    hot.dispose((data) => {
       data.config = currentConfig
       data.memory = runtime?.snapshot()
       stop()

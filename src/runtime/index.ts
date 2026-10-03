@@ -1,5 +1,5 @@
-import { createHot } from './hot'
 import { initializeRuntime } from './entry'
+import { createHot } from './hot'
 
 initializeRuntime(createHot(import.meta.hot))
 // Vite detects this literal call when discovering the HMR boundary.

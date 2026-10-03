@@ -1,16 +1,22 @@
-import { afterEach, expect, test, vi } from 'vitest'
-import { mkdtemp, mkdir, writeFile, rm, realpath, symlink } from 'node:fs/promises'
-import { join } from 'node:path'
-import { tmpdir } from 'node:os'
 import { EventEmitter } from 'node:events'
-import { DominoSession } from '../src/integration/session'
-import { normalizeOptions, validateBase } from '../src/integration/options'
+import { mkdtemp, mkdir, writeFile, rm, realpath, symlink } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
+import { afterEach, expect, test, vi } from 'vitest'
+
 import { protectStorage } from '../src/integration/http'
+import { normalizeOptions, validateBase } from '../src/integration/options'
+import { DominoSession } from '../src/integration/session'
 import { instrument } from '../src/transform/index'
 
 const roots: string[] = []
 const sessions: DominoSession[] = []
-const agent = { id: 'test', check: async () => ({ ready: true, message: 'ready' }), run: async () => {} }
+const agent = {
+  id: 'test',
+  check: async () => ({ ready: true, message: 'ready' }),
+  run: async () => {},
+}
 async function fixture() {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'domino-integration-')))
   roots.push(root)
@@ -23,15 +29,27 @@ async function fixture() {
   return { root, path, code, session }
 }
 afterEach(async () => {
-  await Promise.all(sessions.splice(0).map(session => session.close()))
-  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
+  await Promise.all(sessions.splice(0).map((session) => session.close()))
+  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
 })
 test('normalizes shared options once and rejects invalid execution/base settings', () => {
-  expect(normalizeOptions({})).toMatchObject({ directories: ['src', 'public'], timeoutMs: 300000, queueLimit: 3, allowLan: false, shortcuts: ['Alt+Space', 'Space'] })
-  expect(normalizeOptions({ shortcut: [' Space ', 'Space', '', 'Alt+Space'] }).shortcuts).toEqual(['Space', 'Alt+Space'])
-  for (const timeoutMs of [NaN, 999, Infinity, 1800001]) expect(() => normalizeOptions({ execution: { timeoutMs } })).toThrow()
-  for (const queueLimit of [0, 1.5, 11]) expect(() => normalizeOptions({ execution: { queueLimit } })).toThrow()
-  for (const base of ['relative/', '//remote/', '/query?/', '/hash#/', '/back\\slash/']) expect(() => validateBase(base)).toThrow()
+  expect(normalizeOptions({})).toMatchObject({
+    directories: ['src', 'public'],
+    timeoutMs: 300000,
+    queueLimit: 3,
+    allowLan: false,
+    shortcuts: ['Alt+Space', 'Space'],
+  })
+  expect(normalizeOptions({ shortcut: [' Space ', 'Space', '', 'Alt+Space'] }).shortcuts).toEqual([
+    'Space',
+    'Alt+Space',
+  ])
+  for (const timeoutMs of [NaN, 999, Infinity, 1800001])
+    expect(() => normalizeOptions({ execution: { timeoutMs } })).toThrow()
+  for (const queueLimit of [0, 1.5, 11])
+    expect(() => normalizeOptions({ execution: { queueLimit } })).toThrow()
+  for (const base of ['relative/', '//remote/', '/query?/', '/hash#/', '/back\\slash/'])
+    expect(() => validateBase(base)).toThrow()
   expect(validateBase('/preview/')).toBe('/preview/')
 })
 test('all adapters receive identical source IDs and versions with only the runtime import differing', async () => {
@@ -59,7 +77,9 @@ test('a transformed, removed, or symbolic-link source cannot leave a stale regis
   await expect(session.registry.resolve(id)).rejects.toMatchObject({ code: 'STALE_SELECTION' })
   await symlink(path, join(root, 'src/link.tsx'))
   expect(await session.transform(code, join(root, 'src/link.tsx'), 'runtime', warn)).toBeUndefined()
-  expect(await session.transform(code, join(root, '../outside.tsx'), 'runtime', warn)).toBeUndefined()
+  expect(
+    await session.transform(code, join(root, '../outside.tsx'), 'runtime', warn),
+  ).toBeUndefined()
 })
 test('initialization/close are idempotent, failed initialization leaves no lock, and a new session can restart', async () => {
   const { root, session } = await fixture()
@@ -83,7 +103,9 @@ test('initialization/close are idempotent, failed initialization leaves no lock,
   await expect(invalid.session.initialize()).rejects.toMatchObject({ code: 'INVALID_STORAGE' })
   expect(server.listenerCount('upgrade')).toBe(0)
   expect(server.listenerCount('close')).toBe(0)
-  expect(() => invalid.session.attach(server, false, { info() {}, warn() {}, error() {} })).toThrow()
+  expect(() =>
+    invalid.session.attach(server, false, { info() {}, warn() {}, error() {} }),
+  ).toThrow()
 })
 test('attach registers one upgrade handler and close detaches it', async () => {
   const { session } = await fixture()
@@ -98,7 +120,14 @@ test('attach registers one upgrade handler and close detaches it', async () => {
   expect(server.listenerCount('close')).toBe(0)
 })
 test('storage middleware rejects encoded and Windows-style routes before static serving', () => {
-  for (const url of ['/.domino/tasks/x', '/preview/%2Edomino/tasks/x?raw', '/@fs/project/.domino/x', '/preview/%2Edomino%5Ctasks%5Cx', '/.DOMINO/tasks/x', '/%zz']) {
+  for (const url of [
+    '/.domino/tasks/x',
+    '/preview/%2Edomino/tasks/x?raw',
+    '/@fs/project/.domino/x',
+    '/preview/%2Edomino%5Ctasks%5Cx',
+    '/.DOMINO/tasks/x',
+    '/%zz',
+  ]) {
     const response = { statusCode: 200, end: vi.fn() }
     const next = vi.fn()
     protectStorage({ url } as any, response as any, next)

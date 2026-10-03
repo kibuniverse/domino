@@ -87,14 +87,14 @@ export default defineConfig({
 })
 ```
 
-| 选项 | 默认值 | 说明 |
-| --- | --- | --- |
-| `agent` | `{ provider: 'codex' }` | 见下面的「Agent 配置」。 |
-| `directories` | `['src', 'public']` | 必须是工作区相对源码目录。默认只允许其下的 JS/TS、JSX/TSX、CSS/SCSS/Less、JSON、SVG、HTML 等文本文件；二进制资源、隐藏文件、符号链接、依赖目录和构建配置不在自动修改范围内。 |
-| `shortcut` | `['Space', 'Alt+Space']` | 单个组合或组合列表。如果被操作系统截获，使用面板按钮。 |
-| `execution.timeoutMs` | `300000` | 允许 1000–1800000。默认 5 分钟以容纳模型服务的连接重试。 |
-| `execution.queueLimit` | `3` | 允许 1–10。 |
-| `allowLan` | `false` | 允许局域网内其他设备使用，见下面的「局域网访问」。 |
+| 选项                   | 默认值                   | 说明                                                                                                                                                                         |
+| ---------------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent`                | `{ provider: 'codex' }`  | 见下面的「Agent 配置」。                                                                                                                                                     |
+| `directories`          | `['src', 'public']`      | 必须是工作区相对源码目录。默认只允许其下的 JS/TS、JSX/TSX、CSS/SCSS/Less、JSON、SVG、HTML 等文本文件；二进制资源、隐藏文件、符号链接、依赖目录和构建配置不在自动修改范围内。 |
+| `shortcut`             | `['Space', 'Alt+Space']` | 单个组合或组合列表。如果被操作系统截获，使用面板按钮。                                                                                                                       |
+| `execution.timeoutMs`  | `300000`                 | 允许 1000–1800000。默认 5 分钟以容纳模型服务的连接重试。                                                                                                                     |
+| `execution.queueLimit` | `3`                      | 允许 1–10。                                                                                                                                                                  |
+| `allowLan`             | `false`                  | 允许局域网内其他设备使用，见下面的「局域网访问」。                                                                                                                           |
 
 ### 接入 webpack / Rspack
 
@@ -309,13 +309,13 @@ npm stage approve <stage-id>
 
 Trusted Publisher 已配置，0.1.1 起由 CI 通过 OIDC 发布。以下值供重建时参考——npm 侧的连接保存后无法修改，填错只能删除重建：
 
-| 字段 | 值 |
-|---|---|
-| Organization or user | `kibuniverse` |
-| Repository | `domino` |
-| Workflow filename | `release.yml` |
-| Environment name | `npm` |
-| Allowed actions | `npm stage publish`；不需要直接 `npm publish` 权限 |
+| 字段                 | 值                                                 |
+| -------------------- | -------------------------------------------------- |
+| Organization or user | `kibuniverse`                                      |
+| Repository           | `domino`                                           |
+| Workflow filename    | `release.yml`                                      |
+| Environment name     | `npm`                                              |
+| Allowed actions      | `npm stage publish`；不需要直接 `npm publish` 权限 |
 
 所有字段区分大小写。`release.yml` 设了 `environment: npm`，所以这里必须填 `npm` 而不是留空——GitHub 会把 environment 写进 OIDC token，npm 会比对，不一致会被拒绝。
 

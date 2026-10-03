@@ -21,8 +21,14 @@ export interface VisualContext {
   locator: 'exact' | 'ancestor'
 }
 
-export interface Diagnostic { ready: boolean; message: string }
-export interface AgentEvent { type: 'message' | 'tool'; text: string }
+export interface Diagnostic {
+  ready: boolean
+  message: string
+}
+export interface AgentEvent {
+  type: 'message' | 'tool'
+  text: string
+}
 export interface AgentInput {
   workspaceRoot: string
   writableDirectories: string[]
@@ -36,7 +42,15 @@ export interface AgentAdapter {
   run(input: AgentInput): Promise<void>
 }
 
-export type TaskStatus = 'queued' | 'running' | 'cancelling' | 'validating' | 'completed' | 'completed_with_issues' | 'failed' | 'cancelled'
+export type TaskStatus =
+  | 'queued'
+  | 'running'
+  | 'cancelling'
+  | 'validating'
+  | 'completed'
+  | 'completed_with_issues'
+  | 'failed'
+  | 'cancelled'
 export interface FileChange {
   path: string
   before: string | null
@@ -60,11 +74,26 @@ export interface Task {
   error?: string
   pageUpdate: 'pending' | 'received' | 'not_applicable'
 }
-export const TERMINAL = new Set<TaskStatus>(['completed', 'completed_with_issues', 'failed', 'cancelled'])
+export const TERMINAL = new Set<TaskStatus>([
+  'completed',
+  'completed_with_issues',
+  'failed',
+  'cancelled',
+])
 
 export class DominoError extends Error {
-  constructor(public code: string, message: string) { super(message); this.name = 'DominoError' }
+  constructor(
+    public code: string,
+    message: string,
+  ) {
+    super(message)
+    this.name = 'DominoError'
+  }
 }
 export function errorMessage(error: unknown): string {
-  return error instanceof DominoError ? `${error.code}: ${error.message}` : error instanceof Error ? error.message : String(error)
+  return error instanceof DominoError
+    ? `${error.code}: ${error.message}`
+    : error instanceof Error
+      ? error.message
+      : String(error)
 }

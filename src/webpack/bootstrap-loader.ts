@@ -1,6 +1,9 @@
 import { getSession } from './bridge'
 
-interface Context { _compiler: object; cacheable(value: boolean): void }
+interface Context {
+  _compiler: object
+  cacheable(value: boolean): void
+}
 export default function bootstrapLoader(this: Context) {
   this.cacheable(false)
   const context = getSession(this._compiler)

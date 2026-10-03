@@ -1,5 +1,5 @@
-import { createHot } from './hot-webpack'
 import { initializeRuntime } from './entry'
+import { createHot } from './hot-webpack'
 
 initializeRuntime(createHot(import.meta.webpackHot))
 if (import.meta.webpackHot) import.meta.webpackHot.accept()

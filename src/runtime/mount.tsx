@@ -1,11 +1,13 @@
 import { createRoot } from 'react-dom/client'
+
 import { App } from './App'
 import { createController } from './controller'
 import type { RuntimeMemory } from './controller'
 import type { RuntimeConfig } from './types'
+
 import styles from './styles.css?inline'
-import spotlightStyles from './vendor/react-bits/SpotlightCard.css?inline'
 import glideStyles from './vendor/react-bits/GlideSelect.css?inline'
+import spotlightStyles from './vendor/react-bits/SpotlightCard.css?inline'
 
 export function mountRuntime(config: RuntimeConfig, memory?: RuntimeMemory) {
   const host = document.createElement('div')
@@ -26,7 +28,9 @@ export function mountRuntime(config: RuntimeConfig, memory?: RuntimeMemory) {
     dispose() {
       if (disposed) return
       disposed = true
-      controller.stop(); root.unmount(); host.remove()
+      controller.stop()
+      root.unmount()
+      host.remove()
     },
   }
 }

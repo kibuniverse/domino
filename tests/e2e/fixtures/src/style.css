@@ -1,3 +1,14 @@
-body { font-family: system-ui; padding: 40px; }
-.create-button { background: #27252f; color: white; padding: 12px 20px; border-radius: 8px; border: none; }
-.counter { margin-left: 16px; }
+body {
+  font-family: system-ui;
+  padding: 40px;
+}
+.create-button {
+  background: #27252f;
+  color: white;
+  padding: 12px 20px;
+  border-radius: 8px;
+  border: none;
+}
+.counter {
+  margin-left: 16px;
+}

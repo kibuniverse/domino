@@ -1,21 +1,38 @@
-import { expect } from '@playwright/test'
-import type { Page } from '@playwright/test'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+
+import { expect } from '@playwright/test'
+import type { Page } from '@playwright/test'
 
 export const testAgent = {
   id: 'test',
   check: async () => ({ ready: true, message: '测试 Agent · 隔离副本' }),
   run: async (input: any) => {
     if (input.prompt.includes('等待取消')) {
-      await new Promise((_, reject) => input.signal.addEventListener('abort', () => reject(new Error('cancelled')), { once: true }))
+      await new Promise((_, reject) =>
+        input.signal.addEventListener('abort', () => reject(new Error('cancelled')), {
+          once: true,
+        }),
+      )
       return
     }
-    if (input.prompt.includes('产生语法错误')) { await writeFile(join(input.workspaceRoot, 'src/main.tsx'), 'export function ('); return }
+    if (input.prompt.includes('产生语法错误')) {
+      await writeFile(join(input.workspaceRoot, 'src/main.tsx'), 'export function (')
+      return
+    }
     const main = join(input.workspaceRoot, 'src/App.tsx')
     const style = join(input.workspaceRoot, 'src/style.css')
-    await writeFile(main, (await readFile(main, 'utf8')).replace('>创建作品</button>', '>紫色创建</button>'))
-    await writeFile(style, (await readFile(style, 'utf8')).replace('background: #27252f; color: white', 'background: #805cf5; color: white'))
+    await writeFile(
+      main,
+      (await readFile(main, 'utf8')).replace('>创建作品</button>', '>紫色创建</button>'),
+    )
+    await writeFile(
+      style,
+      (await readFile(style, 'utf8')).replace(
+        'background: #27252f; color: white',
+        'background: #805cf5; color: white',
+      ),
+    )
     input.emit({ type: 'message', text: '已修改按钮文字和颜色。' })
   },
 }

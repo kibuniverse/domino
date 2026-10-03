@@ -1,8 +1,9 @@
 import { readFile, realpath } from 'node:fs/promises'
 import { isAbsolute, relative, resolve, sep } from 'node:path'
+
+import { hash } from '../transform/index'
 import { DominoError } from './types'
 import type { SourceRecord } from './types'
-import { hash } from '../transform/index'
 
 export function within(root: string, path: string): boolean {
   const rel = relative(root, path)
@@ -15,10 +16,14 @@ export class SourceRegistry {
   constructor(public root: string) {}
   replace(file: string, records: SourceRecord[]) {
     this.remove(file)
-    this.files.set(file, records.map(record => record.sourceId))
+    this.files.set(
+      file,
+      records.map((record) => record.sourceId),
+    )
     for (const record of records) {
       const existing = this.records.get(record.sourceId)
-      if (existing && existing.file !== file) throw new DominoError('SOURCE_COLLISION', 'Source identifier collision')
+      if (existing && existing.file !== file)
+        throw new DominoError('SOURCE_COLLISION', 'Source identifier collision')
       this.records.set(record.sourceId, record)
     }
   }
@@ -32,7 +37,8 @@ export class SourceRegistry {
     const path = await realpath(resolve(this.root, source.file))
     if (!within(this.root, path)) throw new DominoError('OUTSIDE_WORKSPACE', '源码路径超出工作区。')
     const code = await readFile(path, 'utf8')
-    if (hash(code) !== source.fileHash) throw new DominoError('STALE_SELECTION', '源码已变化，请重新选择元素。')
+    if (hash(code) !== source.fileHash)
+      throw new DominoError('STALE_SELECTION', '源码已变化，请重新选择元素。')
     return { source, code }
   }
 }
