@@ -9,9 +9,12 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      # Floating major tags here by design: this workflow holds no secrets and only
+      # needs contents:read, so Dependabot can track it. release.yml pins full SHAs
+      # because it carries id-token:write and publish rights.
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
