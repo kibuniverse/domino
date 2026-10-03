@@ -39,10 +39,8 @@ for (const mode of ['source', 'bundle'] as const)
                 const file = join(input.workspaceRoot, 'src/App.tsx')
                 await writeFile(
                   file,
-                  (await readFile(file, 'utf8')).replace(
-                    '>创建作品</button>',
-                    '>React 改造完成</button>',
-                  ),
+                  // Bare text so the edit survives formatter reflows of the fixture.
+                  (await readFile(file, 'utf8')).replace('创建作品', 'React 改造完成'),
                 )
                 input.emit({ type: 'message', text: '已生成修改。' })
                 if (input.prompt.includes('暂停任务'))

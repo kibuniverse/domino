@@ -22,17 +22,9 @@ export const testAgent = {
     }
     const main = join(input.workspaceRoot, 'src/App.tsx')
     const style = join(input.workspaceRoot, 'src/style.css')
-    await writeFile(
-      main,
-      (await readFile(main, 'utf8')).replace('>创建作品</button>', '>紫色创建</button>'),
-    )
-    await writeFile(
-      style,
-      (await readFile(style, 'utf8')).replace(
-        'background: #27252f; color: white',
-        'background: #805cf5; color: white',
-      ),
-    )
+    // Match bare text/hex values so the edits survive formatter reflows of the fixture.
+    await writeFile(main, (await readFile(main, 'utf8')).replace('创建作品', '紫色创建'))
+    await writeFile(style, (await readFile(style, 'utf8')).replace('#27252f', '#805cf5'))
     input.emit({ type: 'message', text: '已修改按钮文字和颜色。' })
   },
 }
