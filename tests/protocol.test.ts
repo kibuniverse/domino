@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest'
 import { parseCreate } from '../src/core/protocol'
-import { allowedConnection, domino } from '../src/vite/index'
+import { allowedConnection } from '../src/integration/http'
+import { domino } from '../src/vite/index'
 import type { IncomingMessage } from 'node:http'
 
 test('validates and minimizes browser context', () => {

@@ -113,3 +113,13 @@ test('a recreated runtime retains pending create requests without generating new
   socket.receive({ type: 'reply', requestId: request.requestId, taskId: 'task-1' })
   expect(store.getSnapshot()).toMatchObject({ activeId: 'task-1', pendingCreate: false })
 })
+
+test('compiler diagnostics arrive over the shared transport and clear after recovery/reconnect', () => {
+  const { store, socket } = connect()
+  socket.receive({ type: 'build.status', error: 'SyntaxError: invalid JSX' })
+  expect(store.getSnapshot().buildError).toBe('编译诊断：SyntaxError: invalid JSX')
+  socket.receive({ type: 'build.status', error: '' })
+  expect(store.getSnapshot().buildError).toBe('')
+  socket.receive({ type: 'ready', diagnostic: { ready: true, message: '可用' }, tasks: [], buildError: 'still broken' })
+  expect(store.getSnapshot().buildError).toBe('编译诊断：still broken')
+})

@@ -19,5 +19,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # typecheck + vitest (fake-CLI fixtures, no credentials needed) + build + publint/attw
+      # Shared/core tests, build, publication checks and packed ESM/CJS config types.
       - run: pnpm check
+      - run: pnpm exec playwright install --with-deps chrome
+      - run: pnpm exec playwright test

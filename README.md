@@ -1,6 +1,6 @@
 # domino
 
-在 React 开发页面选择元素，描述修改要求，由本地 Codex 或 Claude Code 修改源码，并通过 Vite 更新页面。
+在 React 开发页面选择元素，描述修改要求，由本地 Codex 或 Claude Code 修改源码，并通过 Vite、webpack 或 Rspack 更新页面。
 
 对外是一个包 [`@kibuniverse/domino`](https://www.npmjs.com/package/@kibuniverse/domino)，内部按编译转换、浏览器 runtime、任务核心和 Agent Adapter 分模块，分别通过官方 `@openai/codex-sdk` 和 `@anthropic-ai/claude-agent-sdk` 调用 Codex、Claude Code。
 
@@ -14,7 +14,7 @@
 
 ### 能做什么
 
-- 单元素选择、父节点定位提示、任务队列、重连状态快照、真实 diff、取消、受控撤销与 Vite 编译诊断展示。
+- 单元素选择、父节点定位提示、任务队列、重连状态快照、真实 diff、取消、受控撤销与编译诊断展示。
 - 新建、删除和修改文件均记录恢复信息，最近 20 项记录可在重启后查看和撤销。
 - 同一工作区只允许一个 domino 服务，多个浏览器页签共享队列。
 
@@ -40,7 +40,7 @@ Agent 路由默认只接受 loopback 连接，检查精确 Host/Origin，并通�
 
 - 第三方组件可能只能定位到带标记的父元素；没有源码标记时无法提交任务。当前使用处与共享组件选项表达用户意图，不保证实例级映射。
 - 目前仅进行文件范围、并发冲突和 JS/TS/JSON 语法检查，不替代项目类型检查、lint、测试或视觉验收。模块更新确认不代表视觉要求已经满足，CSS-only 修改可能保持“更新待确认”。
-- 暂不支持 Fiber、截图、SSR/RSC、Webpack/Rspack、Vue、远程开发桥接、跨域 iframe 和封闭 Shadow DOM。
+- 暂不支持 Fiber、截图、SSR/RSC、Vue、远程开发桥接、跨域 iframe 和封闭 Shadow DOM。
 
 ## 安装与使用
 
@@ -58,7 +58,7 @@ pnpm add -D @kibuniverse/domino
 # 或 npm install -D @kibuniverse/domino
 ```
 
-包为 ESM，发布产物含类型声明与 source map，从 0.1.1 起附带 SLSA provenance。开发本仓库时可改为从源码打包安装：
+根入口和 Vite 入口为 ESM；webpack/Rspack 入口同时支持 ESM 与 CommonJS，发布产物含类型声明与 source map，从 0.1.1 起附带 SLSA provenance。开发本仓库时可改为从源码打包安装：
 
 ```bash
 pnpm install
@@ -95,6 +95,63 @@ export default defineConfig({
 | `execution.timeoutMs` | `300000` | 允许 1000–1800000。默认 5 分钟以容纳模型服务的连接重试。 |
 | `execution.queueLimit` | `3` | 允许 1–10。 |
 | `allowLan` | `false` | 允许局域网内其他设备使用，见下面的「局域网访问」。 |
+
+### 接入 webpack / Rspack
+
+支持 webpack 5 + webpack-dev-server 5，以及 Rspack 1/2 + 对应主版本的 `@rspack/dev-server`。配置 `mode: 'development'`，并把**同一个插件实例**用于 `plugins` 和 `devServer.setupMiddlewares`：
+
+```ts
+import { domino } from '@kibuniverse/domino/webpack'
+// Rspack 改为：import { domino } from '@kibuniverse/domino/rspack'
+
+const plugin = domino({
+  agent: { provider: 'codex' },
+  directories: ['src', 'public'],
+  // base: '/preview/', // Domino 服务路径前缀，默认 /
+})
+
+export default {
+  mode: 'development',
+  // 保留项目的 entry、JSX/TSX loader、HTML 和 React Fast Refresh 配置。
+  plugins: [plugin],
+  devServer: {
+    host: '127.0.0.1',
+    hot: true,
+    setupMiddlewares: plugin.setupMiddlewares,
+  },
+}
+```
+
+插件自动添加源码标记 pre-loader 和浏览器启动模块，无需手工导入 runtime，也不要求 HTML 插件。源码标记在 Babel/SWC 转换前执行；若其他 pre-loader 已改写源码，会跳过该文件并提示。插件不安装 React Fast Refresh：webpack 可使用 `@pmmmwh/react-refresh-webpack-plugin` 配合 `react-refresh/babel`；Rspack 可使用对应主版本的 `@rspack/plugin-react-refresh` 配合 SWC 的 `jsc.transform.react.refresh`。完整配置见 `examples/webpack/webpack.config.mjs` 和 `examples/rspack/rspack.config.mjs`。
+
+已有开发服务器中间件时显式组合，保留原逻辑：
+
+```ts
+setupMiddlewares(middlewares, server) {
+  const existing = existingSetupMiddlewares(middlewares, server)
+  return plugin.setupMiddlewares(existing, server)
+}
+```
+
+CommonJS 配置使用：
+
+```js
+const { domino } = require('@kibuniverse/domino/webpack')
+// const { domino } = require('@kibuniverse/domino/rspack')
+const plugin = domino()
+module.exports = {
+  mode: 'development',
+  plugins: [plugin],
+  devServer: { setupMiddlewares: plugin.setupMiddlewares },
+  // 其余应用构建配置保持原样。
+}
+```
+
+Node API 同样将该钩子传给服务器构造函数，例如 `new WebpackDevServer({ ...serverOptions, setupMiddlewares: plugin.setupMiddlewares }, compiler)`；Rspack 使用对应的 `RspackDevServer`。每次重新创建开发服务器时创建新的 compiler 和插件实例。
+
+上述 Vite 配置表中的选项均可复用。webpack/Rspack 额外提供 `base`，要求以 `/` 开始和结束；它只控制 Domino 的同源服务地址，不改变 `output.publicPath`。静态资源监听应指向 `public` 等资源目录；若将整个工作区作为静态目录，请避免静态监听触发源码和 `.domino` 任务日志的整页刷新。
+
+新插件仅支持浏览器单 compiler，可使用多个 entry；同一工作区仍只允许一个 Domino 服务。生产构建或未绑定开发服务器的普通构建不注入源码标记、runtime，也不启动任务服务。局域网访问仍需 `allowLan: true` 并设置开发服务器的 `host: '0.0.0.0'`；同源认证和风险说明与 Vite 相同。
 
 ### Agent 配置
 
@@ -164,13 +221,16 @@ src/transform/     JSX 标记、原始位置、source map、语法校验
 src/runtime/       React + Shadow DOM 面板、选择器、任务与 diff 展示
 src/core/          登记表、协议校验、快照、队列、持久化与撤销
 src/agents/        官方 Codex / Claude SDK 适配与 provider 选择
-src/vite/          编译及开发服务器接入
+src/integration/   三种构建器共享配置、源码处理和任务服务
+src/vite/          Vite 编译、HTML 和开发服务器适配
+src/webpack/       webpack/Rspack 共用 compiler、loader 和开发服务器适配
+src/rspack/        Rspack 类型与入口
 examples/react/    可直接运行的 React 示例
 scripts/           真实 Agent / 独立项目的 smoke test
 tests/             单元、协议与浏览器测试
 ```
 
-包提供根入口、`/vite`、`/core`、`/transform`、`/agents/codex`、`/agents/claude`；根入口导出 `AgentConfig` 类型。适配器按 provider 延迟加载；浏览器 runtime 为插件使用的内部入口，独立打包，不引入 Node 依赖。
+包提供根入口、`/vite`、`/webpack`、`/rspack`、`/core`、`/transform`、`/agents/codex`、`/agents/claude`；根入口导出 `AgentConfig` 类型。适配器按 provider 延迟加载；浏览器 runtime 为插件使用的内部入口，独立打包，不引入 Node 依赖。
 
 runtime 保留 `mountDomino` / `reportVersion` 入口，内部由 controller 组合 WebSocket、元素选择、模块版本与可订阅状态，React 组件负责面板展示。样式以内联文本注入 Shadow DOM；面板隐藏时连接继续运行，页面离开和 runtime 热更新时统一卸载。任务历史使用稳定任务 ID，Diff 展开状态不会因日志更新重置。
 
@@ -184,6 +244,8 @@ runtime 保留 `mountDomino` / `reportVersion` 入口，内部由 controller 组
 pnpm install
 pnpm example         # 使用现有 Codex 登录，或 CODEX_API_KEY / OPENAI_API_KEY
 pnpm example:claude  # 需安装并登录 Claude Code 2.1.287+
+pnpm example:webpack # http://127.0.0.1:5181/
+pnpm example:rspack  # http://127.0.0.1:5182/
 ```
 
 打开终端显示的本地地址即可调试完整闭环。
@@ -214,8 +276,8 @@ pnpm --dir ../domino-react-app add -D @kibuniverse/domino@file:vendor/kibunivers
 ### 测试与验证
 
 ```bash
-pnpm check       # 类型检查、单元/协议测试、打包、发布产物校验（publint + attw）
-pnpm test:e2e    # 本地 Vite + 无界面 Chrome；需已安装 Google Chrome
+pnpm check       # 类型检查、单元/协议测试、打包、发布产物校验（publint + attw + 打包后 ESM/CJS 接入类型检查）
+pnpm test:e2e    # Vite / webpack / Rspack 1 / Rspack 2 + 无界面 Chrome；需已安装 Google Chrome
 node scripts/codex-smoke.mjs # 使用真实 Codex，在临时项目测试修改、应用和撤销
 node scripts/claude-smoke.mjs # 使用真实 Claude，在临时项目测试修改、应用和撤销
 node scripts/react-project-smoke.mjs # 独立 React 项目先运行 pnpm dev；真实 SDK + Chrome 验收
@@ -225,7 +287,7 @@ node scripts/react-project-smoke.mjs ../domino-react-app http://127.0.0.1:5180/ 
 
 真实 smoke test 依赖本地登录、网络和模型调用，不属于默认单元测试流程。独立 React 验收检查项目搜索、分类、新建、待办勾选，再通过页面修改实际按钮文案，验证 diff、HMR、React 状态保留及撤销后所有源码恢复。
 
-`tests/e2e/` 覆盖完整浏览器闭环（含非安全上下文的局域网访问）、跨站 WebSocket 拒绝和任务日志不可经文件路由读取；单元测试使用 fake CLI fixture，不需要凭证。
+`tests/e2e/` 使用共享测试 Agent 和流程断言覆盖 Vite、webpack、Rspack 1/2 的完整浏览器闭环（含非安全上下文的局域网访问）、跨站 WebSocket 拒绝和任务日志不可经文件路由读取；单元测试使用 fake CLI fixture，不需要凭证。
 
 ## 发布
 

@@ -1,3 +1,4 @@
+import { hot } from './lifecycle'
 import { capabilities, createStore } from './store'
 import { createConnection, uuid } from './connection'
 import type { ConnectionMemory } from './connection'
@@ -14,10 +15,9 @@ export function createController(config: RuntimeConfig, host: HTMLElement, memor
   const connection = createConnection(config, store, previous?.connection)
   const selection = createSelection(config, host, store)
   let stopped = false
-  const compileError = (payload: { err: { message: string } }) => store.update({ buildError: `编译诊断：${String(payload.err?.message ?? '未知错误').slice(0, 4000)}` })
+  const compileError = (message: string) => store.update({ buildError: `编译诊断：${message.slice(0, 4000)}` })
   const afterUpdate = () => { store.update({ buildError: '' }); connection.ackPage() }
-  import.meta.hot?.on('vite:error', compileError)
-  import.meta.hot?.on('vite:afterUpdate', afterUpdate)
+  const unsubscribeHot = hot?.subscribe(compileError, afterUpdate)
   return {
     store,
     start: connection.start,
@@ -38,8 +38,7 @@ export function createController(config: RuntimeConfig, host: HTMLElement, memor
       stopped = true
       try { sessionStorage.setItem(panelKey, store.getSnapshot().panelOpen ? 'open' : 'closed') } catch { /* Storage may be unavailable. */ }
       selection.stop(); connection.stop()
-      import.meta.hot?.off('vite:error', compileError)
-      import.meta.hot?.off('vite:afterUpdate', afterUpdate)
+      unsubscribeHot?.()
     },
   }
 }

@@ -5,7 +5,8 @@ import { reportedVersions, subscribeVersions } from './versions'
 
 type Request = { type: string; requestId?: string; context?: VisualContext; [key: string]: unknown }
 type Message =
-  | { type: 'ready'; diagnostic: Diagnostic; tasks: Task[] }
+  | { type: 'ready'; diagnostic: Diagnostic; tasks: Task[]; buildError?: string }
+  | { type: 'build.status'; error: string }
   | { type: 'task.snapshot'; task: Task }
   | { type: 'reply'; requestId?: string; taskId?: string; error?: string }
 export interface ConnectionMemory { pending: Request[] }
@@ -67,10 +68,12 @@ export function createConnection(config: RuntimeConfig, store: RuntimeStore, mem
       if (!message || typeof message !== 'object') return
       if (message.type === 'ready') {
         reconnectDelay = 500
-        store.update({ ready: true, diagnostic: message.diagnostic, connectionMessage: message.diagnostic.message })
+        store.update({ ready: true, diagnostic: message.diagnostic, connectionMessage: message.diagnostic.message, buildError: message.buildError ? `编译诊断：${message.buildError.slice(0, 4000)}` : '' })
         mergeTasks(message.tasks, true)
         for (const request of pending.values()) send(request)
         ackPage()
+      } else if (message.type === 'build.status') {
+        store.update({ buildError: message.error ? `编译诊断：${message.error.slice(0, 4000)}` : '' })
       } else if (message.type === 'task.snapshot') {
         mergeTasks([message.task])
         ackPage()
