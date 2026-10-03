@@ -69,7 +69,7 @@ for (const mode of ['source', 'bundle'] as const) test.describe(`${mode} React r
     await expect(page.locator('.connection')).toContainText('React runtime 测试 Agent')
   })
 
-  test('Glide Select pointer picks preserve the draft and submit the chosen scope', async ({ page }) => {
+  test('Glide Select pointer picks preserve the draft and submit the chosen scope', async ({ page }, testInfo) => {
     const scope = page.getByRole('combobox', { name: '作用范围' })
     await expect(scope).toHaveText('由 Agent 判断')
     await page.getByLabel('修改要求').fill('修改作用范围测试')
@@ -81,7 +81,7 @@ for (const mode of ['source', 'bundle'] as const) test.describe(`${mode} React r
     await expect(page.getByLabel('修改要求')).toHaveValue('修改作用范围测试')
     await scope.click()
     await page.getByRole('option', { name: '修改共享组件' }).hover()
-    await page.screenshot({ path: `/private/tmp/domino-glide-${mode}.png`, fullPage: true })
+    await page.screenshot({ path: testInfo.outputPath(`domino-glide-${mode}.png`), fullPage: true })
     await page.getByRole('option', { name: '修改共享组件' }).click()
     await expect(scope).toHaveText('修改共享组件')
     await page.getByRole('button', { name: '发送' }).click()
