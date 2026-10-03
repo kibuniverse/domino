@@ -50,6 +50,7 @@ export function domino(options: DominoOptions = {}): Plugin {
   if (!Number.isFinite(timeoutMs) || timeoutMs < 1000 || timeoutMs > 1800000 || !Number.isInteger(queueLimit) || queueLimit < 1 || queueLimit > 10) throw new DominoError('INVALID_CONFIG', '任务超时或队列配置无效。')
   const virtualId = 'virtual:domino/runtime'
   const resolvedId = `\0${virtualId}`
+  const runtimeEntry = () => fileURLToPath(import.meta.url.endsWith('.ts') ? new URL('../runtime/index.ts', import.meta.url) : new URL('./runtime.mjs', import.meta.url))
   return {
     name: 'domino',
     enforce: 'pre',
@@ -59,8 +60,7 @@ export function domino(options: DominoOptions = {}): Plugin {
     async load(id) {
       if (id !== resolvedId) return
       // Bundled plugin and runtime are sibling entries. Source imports use the TS runtime.
-      const runtime = import.meta.url.endsWith('.ts') ? new URL('../runtime/index.ts', import.meta.url) : new URL('./runtime.mjs', import.meta.url)
-      return `export { mountDomino, reportVersion } from ${JSON.stringify(fileURLToPath(runtime))}`
+      return `export { mountDomino, reportVersion } from ${JSON.stringify(runtimeEntry())}`
     },
     async transform(code, id) {
       const path = id.split('?')[0]
@@ -85,6 +85,12 @@ export function domino(options: DominoOptions = {}): Plugin {
     async configureServer(server) {
       if (!server.httpServer) throw new DominoError('UNSUPPORTED_SERVER', '第一版需要 Vite 自带 HTTP 服务，不支持 middleware mode。')
       if (!base.startsWith('/') || !base.endsWith('/')) throw new DominoError('INVALID_BASE', '第一版要求 Vite base 为以 / 开始和结束的路径。')
+      // Use Vite resolution so projects using dependency aliases are supported too.
+      for (const dependency of ['react', 'react/jsx-runtime', 'react-dom/client']) {
+        if (!await server.environments.client.pluginContainer.resolveId(dependency, runtimeEntry())) {
+          throw new DominoError('RUNTIME_DEPENDENCY_MISSING', 'Domino 面板需要 React 19 和 React DOM 19，请安装：npm install react@^19 react-dom@^19')
+        }
+      }
       // Install before Vite's file/import handlers, including /@fs/ and ?raw.
       // Keep the project's existing fs.deny policy intact.
       server.middlewares.use((request, response, next) => {

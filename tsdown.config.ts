@@ -1,4 +1,6 @@
 import { defineConfig } from 'tsdown'
+import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
 
 export default defineConfig([
   {
@@ -13,6 +15,34 @@ export default defineConfig([
     entry: { runtime: 'src/runtime/index.ts' },
     platform: 'browser',
     dts: false,
+    deps: {
+      neverBundle: [/^react(?:-dom)?(?:\/|$)/],
+      alwaysBundle: [/^(?:motion|framer-motion|motion-dom|motion-utils|@hugeicons\/react|@hugeicons\/core-free-icons)(?:\/|$)/],
+      onlyBundle: ['motion', 'framer-motion', 'motion-dom', 'motion-utils', '@hugeicons/react', '@hugeicons/core-free-icons'],
+      onlyImport: ['react', 'react-dom'],
+    },
+    minify: true,
+    inputOptions: {
+      onwarn(warning, defaultHandler) {
+        // This entry is browser-only; React Server Component directives are irrelevant.
+        if (warning.code === 'MODULE_LEVEL_DIRECTIVE' && warning.message.includes('use client')) return
+        defaultHandler(warning)
+      },
+    },
+    plugins: [{
+      name: 'domino-shadow-css',
+      resolveId(source, importer) {
+        if (source.endsWith('.css?inline') && importer) return resolve(dirname(importer), source)
+      },
+      load(id) {
+        if (id.endsWith('.css?inline')) {
+          const path = id.slice(0, -7)
+          this.addWatchFile(path)
+          return `export default ${JSON.stringify(readFileSync(path, 'utf8'))}`
+        }
+      },
+    }],
+    copy: [{ from: ['src/runtime/vendor/react-bits/LICENSE.md', 'src/runtime/vendor/react-bits/SOURCE.md'], to: 'dist/third-party/react-bits' }],
     outExtensions: () => ({ js: '.mjs' }),
     sourcemap: true,
     clean: true,

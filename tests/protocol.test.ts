@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import { parseCreate } from '../src/core/protocol'
-import { allowedConnection } from '../src/vite/index'
+import { allowedConnection, domino } from '../src/vite/index'
 import type { IncomingMessage } from 'node:http'
 
 test('validates and minimizes browser context', () => {
@@ -29,4 +29,18 @@ test('allowLan accepts LAN clients but still requires same-origin Host/Origin', 
   expect(allowedConnection(request('192.168.1.1:5173', 'http://192.168.1.1:9999'), false, true)).toBe(false)
   expect(allowedConnection(request('192.168.1.1:5173'), false, true)).toBe(false)
   expect(allowedConnection(request('localhost:5173', 'http://localhost:5173'), false, true)).toBe(true)
+})
+
+test('missing React runtime peers fail with an installation hint before task services start', async () => {
+  const plugin = domino() as any
+  await plugin.configResolved({ root: process.cwd(), base: '/' })
+  const requests: string[] = []
+  await expect(plugin.configureServer({
+    httpServer: {},
+    environments: { client: { pluginContainer: { resolveId: async (id: string) => {
+      requests.push(id)
+      return id === 'react-dom/client' ? null : { id }
+    } } } },
+  })).rejects.toMatchObject({ code: 'RUNTIME_DEPENDENCY_MISSING', message: expect.stringContaining('npm install react@^19 react-dom@^19') })
+  expect(requests).toEqual(['react', 'react/jsx-runtime', 'react-dom/client'])
 })
