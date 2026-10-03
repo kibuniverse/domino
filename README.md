@@ -2,7 +2,7 @@
 
 在 React 开发页面选择元素，描述修改要求，由本地 Codex 或 Claude Code 修改源码，并通过 Vite 更新页面。
 
-对外是一个包 `@kibuniverse/domino`，内部按编译转换、浏览器 runtime、任务核心和 Agent Adapter 分模块，分别通过官方 `@openai/codex-sdk` 和 `@anthropic-ai/claude-agent-sdk` 调用 Codex、Claude Code。当前尚未发布到 npm。
+对外是一个包 [`@kibuniverse/domino`](https://www.npmjs.com/package/@kibuniverse/domino)，内部按编译转换、浏览器 runtime、任务核心和 Agent Adapter 分模块，分别通过官方 `@openai/codex-sdk` 和 `@anthropic-ai/claude-agent-sdk` 调用 Codex、Claude Code。
 
 ## 功能
 
@@ -34,7 +34,7 @@ Agent 路由默认只接受 loopback 连接，检查精确 Host/Origin，并通�
 
 ### 支持范围
 
-包尚未发布 1.0：0.x 阶段 minor 版本可能包含破坏性变更，升级前请查看 [Release Notes](https://github.com/kibuniverse/domino/releases)。
+当前为 0.x 版本：minor 版本可能包含破坏性变更，升级前请查看 [Release Notes](https://github.com/kibuniverse/domino/releases)。
 
 已使用 macOS、Node 22.23.3、Vite 8.3.2、React 19.3.0、`@vitejs/plugin-react` 6.1.1 和 Chrome 验证浏览器闭环。当前集成目标为 `@openai/codex-sdk` / Codex CLI 0.160.0，以及 `@anthropic-ai/claude-agent-sdk` 0.3.287 / Claude Code 2.1.287。权限和事件接口升级后应重跑 smoke test。Linux 尚需目标环境验证；Codex 在 Windows 首版禁用真实执行，Claude 的 Windows 集成尚未验证。
 
@@ -46,19 +46,25 @@ Agent 路由默认只接受 loopback 连接，检查精确 Host/Origin，并通�
 
 ### 前置准备
 
-- Node.js 22.12+ 与 pnpm。
+- Node.js 22.12+，以及 pnpm 或 npm。
+- React 19 与 React DOM 19；domino 的 React 面板复用项目依赖，通过独立 root 挂载在 Shadow DOM 中。
 - 已登录的 Codex CLI 0.160.0+，或已登录的 Claude Code 2.1.287+；二者至少准备一个，也可两个都装、按项目切换。
 - 模型推理需要网络：domino 调用的是本地 CLI/SDK，但源码上下文会发送到所选 Agent 配置的模型服务。
 
 ### 安装
 
-包尚未发布到 npm，需要从源码打包后安装到目标项目：
+```bash
+pnpm add -D @kibuniverse/domino
+# 或 npm install -D @kibuniverse/domino
+```
+
+包为 ESM，发布产物含类型声明与 source map，从 0.1.1 起附带 SLSA provenance。开发本仓库时可改为从源码打包安装：
 
 ```bash
 pnpm install
 pnpm build
 npm pack
-# 在目标项目安装生成的 kibuniverse-domino-0.1.0.tgz
+# 在目标项目安装生成的 kibuniverse-domino-<version>.tgz
 ```
 
 ### 接入 Vite
@@ -155,7 +161,7 @@ vite --host 0.0.0.0
 
 ```
 src/transform/     JSX 标记、原始位置、source map、语法校验
-src/runtime/       Shadow DOM 浮层、选择器、任务与 diff 展示
+src/runtime/       React + Shadow DOM 面板、选择器、任务与 diff 展示
 src/core/          登记表、协议校验、快照、队列、持久化与撤销
 src/agents/        官方 Codex / Claude SDK 适配与 provider 选择
 src/vite/          编译及开发服务器接入
@@ -165,6 +171,10 @@ tests/             单元、协议与浏览器测试
 ```
 
 包提供根入口、`/vite`、`/core`、`/transform`、`/agents/codex`、`/agents/claude`；根入口导出 `AgentConfig` 类型。适配器按 provider 延迟加载；浏览器 runtime 为插件使用的内部入口，独立打包，不引入 Node 依赖。
+
+runtime 保留 `mountDomino` / `reportVersion` 入口，内部由 controller 组合 WebSocket、元素选择、模块版本与可订阅状态，React 组件负责面板展示。样式以内联文本注入 Shadow DOM；面板隐藏时连接继续运行，页面离开和 runtime 热更新时统一卸载。任务历史使用稳定任务 ID，Diff 展开状态不会因日志更新重置。
+
+进度文字、任务历史和目标摘要使用按需适配的 [React Bits](https://reactbits.dev/) 效果，支持减少动态效果。引入来源和固定 commit 见 `src/runtime/vendor/react-bits/SOURCE.md`。这些上游文件保留其 MIT + Commons Clause 许可证；发布产物在 `dist/third-party/react-bits/` 中包含许可证与来源说明，未另行导出效果组件。
 
 ### 本地运行示例
 
@@ -233,28 +243,27 @@ npm stage approve <stage-id>
 
 `--tag` 是暂存包的不可变属性，批准后直接落到对应 dist-tag。公开仓库发布公开包时，SLSA provenance 由 OIDC 自动附加，不需要 `--provenance`。
 
-### 首次启用前
+### npm 侧配置
 
-npm 的 Trusted Publisher 配置入口只在**已存在**的包上出现，而 OIDC 又要求先有该配置，所以首个版本必须手动发布：
+Trusted Publisher 已配置，0.1.1 起由 CI 通过 OIDC 发布。以下值供重建时参考——npm 侧的连接保存后无法修改，填错只能删除重建：
 
-1. `@kibuniverse` npm organization 必须存在，且你的账号在其中拥有发布权限。scoped 包要求先拥有该 scope。
-2. 手动发布首个版本（需账号级 2FA）：`npm login` 后 `npm publish --access public`。
+| 字段 | 值 |
+|---|---|
+| Organization or user | `kibuniverse` |
+| Repository | `domino` |
+| Workflow filename | `release.yml` |
+| Environment name | `npm` |
+| Allowed actions | `npm stage publish`；不需要直接 `npm publish` 权限 |
 
-   > 发布报 `E404 ... PUT https://registry.npmjs.org/@scope%2fname` 时，先查 `npm whoami` 而不是怀疑包名：registry 对**未认证**的创建请求一律返回 404 而非 401，以免泄露 scope 是否存在。granular access token 最长只有 90 天，过期就会走到这个分支，重新 `npm login` 即可。
-   >
-   > 反向也成立：发布成功后**立刻**查包可能仍返回 404，那是 registry 的 CDN 缓存（`cache-control: max-age=300`），不是发布失败。以 `~/.npm/_logs/` 中该次 `PUT` 的状态码为准，或加 `?t=$(date +%s)` 绕过缓存。
-3. 在包页面 **Settings → Trusted publishing** 添加 GitHub Actions：
-
-   | 字段 | 值 |
-   |---|---|
-   | Organization or user | `kibuniverse` |
-   | Repository | `domino` |
-   | Workflow filename | `release.yml` |
-   | Environment name | `npm` |
-   | Allowed actions | 允许 `npm stage publish`；不需要直接 `npm publish` 权限 |
-
-   所有字段区分大小写；保存后无法修改，填错只能删除重建。`release.yml` 设了 `environment: npm`，所以这里必须填 `npm` 而不是留空——GitHub 会把 environment 写进 OIDC token，npm 会比对，不一致会被拒绝。
-
-4. 首次暂存发布验证通过后，建议把包的 Publishing access 设为 **Require two-factor authentication and disallow tokens**。该设置只影响传统 token，OIDC 暂存不受影响。
+所有字段区分大小写。`release.yml` 设了 `environment: npm`，所以这里必须填 `npm` 而不是留空——GitHub 会把 environment 写进 OIDC token，npm 会比对，不一致会被拒绝。
 
 发布工作流需要 npm >= 11.20.0（`release.yml` 中显式安装）；构建与测试仍由 `.npmrc` 固定的 Node 22.23.3 执行。
+
+### 手动发布与排障
+
+0.1.0 是在配置 Trusted Publisher 之前手动发布的：npm 的配置入口只在**已存在**的包上出现，而 OIDC 又要求先有该配置，所以首个版本绕不开手动发布。若需重走该流程，注意 registry 的两个反直觉行为：
+
+- 报 `E404 ... PUT https://registry.npmjs.org/@scope%2fname` 时先查 `npm whoami`，而不是怀疑包名：registry 对**未认证**的创建请求一律返回 404 而非 401，以免泄露 scope 是否存在。granular access token 最长 90 天，过期即走到这个分支，重新 `npm login` 即可。
+- 反向也成立：发布成功后**立刻**查包可能仍返回 404，那是 registry 的 CDN 缓存（`cache-control: max-age=300`），不是发布失败。以 `~/.npm/_logs/` 中该次 `PUT` 的状态码为准，或加 `?t=$(date +%s)` 绕过缓存。
+
+首次暂存发布验证通过后，建议把包的 Publishing access 设为 **Require two-factor authentication and disallow tokens**。该设置只影响传统 token，OIDC 暂存不受影响。
