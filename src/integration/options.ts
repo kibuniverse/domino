@@ -8,9 +8,31 @@ export interface DominoOptions {
   directories?: string[]
   execution?: { timeoutMs?: number; queueLimit?: number }
   allowLan?: boolean
+  deployment?: { enabled: boolean; projectId: string; serviceUrl?: string; manifest?: string }
 }
 
 export function normalizeOptions(options: DominoOptions) {
+  const deployment = options.deployment?.enabled ? options.deployment : undefined
+  if (
+    deployment &&
+    (typeof deployment.projectId !== 'string' ||
+      !/^[a-zA-Z0-9_-]{1,80}$/.test(deployment.projectId))
+  )
+    throw new DominoError(
+      'INVALID_CONFIG',
+      'deployment.projectId 仅允许字母、数字、下划线和短横线。',
+    )
+  if (deployment?.serviceUrl) {
+    const url = new URL(deployment.serviceUrl)
+    if (
+      !['http:', 'https:'].includes(url.protocol) ||
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash
+    )
+      throw new DominoError('INVALID_CONFIG', 'serviceUrl 必须是 HTTP/HTTPS 服务地址。')
+  }
   const timeoutMs = options.execution?.timeoutMs ?? 300000
   const queueLimit = options.execution?.queueLimit ?? 3
   if (
@@ -28,6 +50,7 @@ export function normalizeOptions(options: DominoOptions) {
       ? [options.shortcut]
       : ['Alt+Space', 'Space']
   return {
+    deployment,
     agent: options.agent,
     directories: validateDirectories(options.directories ?? DEFAULT_DIRS),
     timeoutMs,

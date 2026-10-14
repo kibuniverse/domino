@@ -28,7 +28,7 @@
 
 Agent 在临时源码副本执行，检查后自动应用；暂未提供候选 patch 的人工审批模式。生产构建不启用插件，不注入标记、runtime 或任务服务。需要将 domino 放在其他改写 JSX 的插件之前；无法确认原始代码位置时跳过该文件。
 
-Agent 路由默认只接受 loopback 连接，检查精确 Host/Origin，并通过首次 WebSocket 消息校验每次启动生成的 token。需要从局域网其他设备使用时，见下面的「局域网访问」。
+Agent 路由默认只接受 loopback 连接，检查精确 Host/Origin，并通过 WebSocket 首次消息或 HTTP 请求校验每次启动生成的 token。需要从局域网其他设备使用时，见下面的「局域网访问」。
 
 本地文件执行不代表离线推理，源码上下文可能发送到所选 Agent 配置的模型服务。任务快照包含项目源码，清理 `.domino` 前请先结束任务并确认不再需要历史撤销。
 
@@ -153,6 +153,62 @@ Node API 同样将该钩子传给服务器构造函数，例如 `new WebpackDevS
 
 新插件仅支持浏览器单 compiler，可使用多个 entry；同一工作区仍只允许一个 Domino 服务。生产构建或未绑定开发服务器的普通构建不注入源码标记、runtime，也不启动任务服务。局域网访问仍需 `allowLan: true` 并设置开发服务器的 `host: '0.0.0.0'`；同源认证和风险说明与 Vite 相同。
 
+### 部署后编辑与独立 Node 服务
+
+页面部署到静态服务器后，可以连接单独运行的 Domino 编辑服务，无需启动 Vite / webpack / Rspack 开发服务器。服务必须拥有项目原始源码和可用的 Agent；只有 `dist` 的机器不能直接编辑源码。
+
+在构建插件中显式开启部署编辑模式：
+
+```ts
+domino({
+  deployment: {
+    enabled: true,
+    projectId: 'my-app',
+    // 可选，也可以由用户在页面面板里填写。
+    serviceUrl: 'https://editor.example.com',
+    // manifest: '.domino/builds/my-app/latest.json',
+  },
+})
+```
+
+Vite 在 `vite build` 时启用部署编辑，在 `vite dev` 时继续使用开发服务。webpack / Rspack 的部署编辑配置用于单次浏览器构建；运行 dev-server 时请关闭 `deployment.enabled`。首版不支持部署模式的 watch、SSR、库模式和多 compiler 构建。
+
+构建保留 React 编辑面板、`data-va-id` 元素标记与源码版本报告，并生成 `.domino/builds/my-app/latest.json` 和以构建 ID 命名的历史映射。构建不启动 Agent、不使用编辑锁；未开启部署编辑的生产构建维持原有行为。映射必须在公开构建目录之外，不能跟随静态文件公开。若在 CI 构建，请把映射作为私有附件送到源码机器，并确保源码版本与构建一致。
+
+在源码机器创建 `domino.server.json`：
+
+```json
+{
+  "projectId": "my-app",
+  "root": "/srv/my-app",
+  "manifest": ".domino/builds/my-app/latest.json",
+  "host": "127.0.0.1",
+  "port": 8787,
+  "allowedOrigins": ["https://app.example.com"],
+  "agent": { "provider": "codex" }
+}
+```
+
+```bash
+pnpm exec domino serve --config domino.server.json
+# 开发本仓库时先 pnpm build，再运行：
+# node dist/cli.mjs serve --config domino.server.json
+```
+
+`root` 相对于配置文件目录解析，`manifest` 相对于 `root` 解析，也支持绝对路径或路径数组。`agent`、`directories`、`execution` 沿用插件选项。一个服务管理一个项目，同一源码目录仍只允许一个编辑服务。
+
+默认监听 loopback；对外使用时可通过反向代理提供 HTTPS，也可以配置 `host: "0.0.0.0"` 并限制网络访问。反向代理保留 `/__domino/v1/` 路径；WS 转发可选，HTTP 轮询可以独立工作。服务地址可带反向代理路径前缀，例如 `https://editor.example.com/domino`。
+
+在页面打开 domino →「编辑服务」，填写完整的服务 URL 和服务启动时显示的配对码，点击「连接」。可先「测试连接」。服务校验页面来源、项目标识、构建映射及源码 hash，成功后才能提交任务。配对码仅交给项目编辑者；配对凭证绑定页面 Origin，8 小时后失效。服务重启后需要重新配对。服务地址在当前页面来源下按项目保存，凭证仅保存在标签页的 sessionStorage 中，不写入构建产物或 URL。
+
+HTTPS 页面使用 HTTPS 编辑地址；使用 IP 时同样需要有效证书。页面如果配置 CSP，要在 `connect-src` 中允许编辑服务的 HTTPS 和 WSS 地址。公网页面连接局域网或 localhost 地址还可能需要浏览器的本地网络访问权限。`allowedOrigins` 填精确的页面 Origin，不能使用通配符。
+
+连接优先使用 WebSocket，握手超时、连接反复断开或心跳失效时自动切换 HTTP。运行任务时每秒同步，空闲时每 5 秒同步，使用任务序号获取增量状态；每 30 秒探测恢复 WS。切换通道保留请求 ID，提交、取消和撤销不会因为重发而重复执行。服务重启时停止旧请求自动重放，并保留待确认任务的修改要求供核对。
+
+部署编辑修改的是源码。任务完成后显示“等待重新构建部署”，用户重新构建并部署静态产物，同时更新编辑服务的 manifest，然后刷新页面。服务会重新加载变更后的 manifest，并在运行期间保留已加载的旧构建映射；服务重启后只加载配置指定的映射。旧页面定位到已修改的源码时会拒绝继续编辑，避免错改位置。新页面加载匹配的 JS/TS 模块后确认更新；CSS-only 修改沿用现有“更新待确认”限制。撤销源码后也需要重新构建部署。首版不执行自动构建或发布命令。
+
+代码集成也可使用 `@kibuniverse/domino/service` 的 `startDominoService(options)`，返回 Node server、配对码和幂等的 `close()`。
+
 ### Agent 配置
 
 两个官方 SDK（`@openai/codex-sdk`、`@anthropic-ai/claude-agent-sdk`）声明为**可选依赖**：默认随包安装，只使用单一 Agent 的环境也可显式排除；缺少对应 SDK 时 domino 会报 `AGENT_SDK_NOT_INSTALLED` 并提示安装命令。两者均为精确版本锁定（每版经过兼容性验证），升级由 Dependabot 分组 PR 跟进。
@@ -221,7 +277,8 @@ src/transform/     JSX 标记、原始位置、source map、语法校验
 src/runtime/       React + Shadow DOM 面板、选择器、任务与 diff 展示
 src/core/          登记表、协议校验、快照、队列、持久化与撤销
 src/agents/        官方 Codex / Claude SDK 适配与 provider 选择
-src/integration/   三种构建器共享配置、源码处理和任务服务
+src/integration/   三种构建器共享配置、源码处理、构建映射和任务服务
+src/service/       独立 Node 编辑服务、配对及命令行入口
 src/vite/          Vite 编译、HTML 和开发服务器适配
 src/webpack/       webpack/Rspack 共用 compiler、loader 和开发服务器适配
 src/rspack/        Rspack 类型与入口
@@ -232,7 +289,7 @@ tests/             单元、协议与浏览器测试
 
 包提供根入口、`/vite`、`/webpack`、`/rspack`、`/core`、`/transform`、`/agents/codex`、`/agents/claude`；根入口导出 `AgentConfig` 类型。适配器按 provider 延迟加载；浏览器 runtime 为插件使用的内部入口，独立打包，不引入 Node 依赖。
 
-runtime 保留 `mountDomino` / `reportVersion` 入口，内部由 controller 组合 WebSocket、元素选择、模块版本与可订阅状态，React 组件负责面板展示。样式以内联文本注入 Shadow DOM；面板隐藏时连接继续运行，页面离开和 runtime 热更新时统一卸载。任务历史使用稳定任务 ID，Diff 展开状态不会因日志更新重置。
+runtime 保留 `mountDomino` / `reportVersion` 入口，内部由 controller 组合 WS/HTTP 连接、服务配对、元素选择、模块版本与可订阅状态，React 组件负责面板展示。样式以内联文本注入 Shadow DOM；面板隐藏时连接继续运行，页面离开和 runtime 热更新时统一卸载。任务历史使用稳定任务 ID，Diff 展开状态不会因日志更新重置。
 
 进度文字、任务历史和目标摘要使用按需适配的 [React Bits](https://reactbits.dev/) 效果，支持减少动态效果。引入来源和固定 commit 见 `src/runtime/vendor/react-bits/SOURCE.md`。这些上游文件保留其 MIT + Commons Clause 许可证；发布产物在 `dist/third-party/react-bits/` 中包含许可证与来源说明，未另行导出效果组件。
 

@@ -211,3 +211,86 @@ test('compiler diagnostics arrive over the shared transport and clear after reco
   })
   expect(store.getSnapshot().buildError).toBe('编译诊断：still broken')
 })
+
+test('a stalled WebSocket handshake falls back to HTTP and preserves request IDs after a lost reply', async () => {
+  let commands = 0
+  const fetcher = vi.fn(async (_url: string, options: any) => {
+    const body = JSON.parse(options.body)
+    if (body.request) {
+      commands++
+      if (commands === 1) throw new Error('lost response')
+      return {
+        ok: true,
+        json: async () => ({ type: 'reply', requestId: body.request.requestId, taskId: 'task-1' }),
+      }
+    }
+    return {
+      ok: true,
+      json: async () => ({
+        type: 'ready',
+        sessionId: config.sessionId,
+        diagnostic: { ready: true, message: '可用' },
+        tasks: commands ? [{ ...task(1), requestId: 'lost-reply-request' }] : [],
+        taskIds: commands ? ['task-1'] : [],
+      }),
+    }
+  })
+  vi.stubGlobal('fetch', fetcher)
+  const store = createStore()
+  const connection = createConnection(config, store)
+  connections.push(connection)
+  connection.start()
+  await vi.advanceTimersByTimeAsync(5000)
+  expect(store.getSnapshot()).toMatchObject({ ready: true, transport: 'http' })
+  const request = { type: 'task.create', requestId: 'lost-reply-request', context }
+  connection.send(request, true)
+  await vi.advanceTimersByTimeAsync(5000)
+  const sent = fetcher.mock.calls
+    .map(([, options]) => JSON.parse(options.body))
+    .filter((body) => body.request)
+  expect(sent).toHaveLength(2)
+  expect(sent.map((body) => body.request)).toEqual([request, request])
+  expect(store.getSnapshot()).toMatchObject({ pendingCreate: false, activeId: 'task-1' })
+  connection.stop()
+  const count = fetcher.mock.calls.length
+  await vi.advanceTimersByTimeAsync(60000)
+  expect(fetcher).toHaveBeenCalledTimes(count)
+})
+
+test('server session changes halt replay and restore the pending draft', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: async () => ({ error: 'SESSION_CHANGED: 服务已重启' }),
+    }),
+  )
+  const store = createStore()
+  const connection = createConnection(config, store, {
+    pending: [{ type: 'task.create', requestId: 'pending-request', context }],
+  })
+  connections.push(connection)
+  connection.start()
+  await vi.advanceTimersByTimeAsync(5000)
+  expect(store.getSnapshot()).toMatchObject({
+    ready: false,
+    settingsOpen: true,
+    draft: context.instruction,
+  })
+  const count = (fetch as any).mock.calls.length
+  await vi.advanceTimersByTimeAsync(60000)
+  expect(fetch).toHaveBeenCalledTimes(count)
+})
+
+test('deployment runtimes ask for connection settings without attempting a socket or loading a public token', () => {
+  const store = createStore()
+  const connection = createConnection(
+    { ...config, mode: 'deployed', projectId: 'app', buildId: 'build-id', token: '' },
+    store,
+  )
+  connections.push(connection)
+  connection.start()
+  expect(Socket.instances).toHaveLength(0)
+  expect(store.getSnapshot()).toMatchObject({ settingsOpen: true, deployed: true, ready: false })
+})

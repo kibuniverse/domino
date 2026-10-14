@@ -221,19 +221,25 @@ test('task journals cannot be retrieved through Vite file handlers', async ({ re
   }
 })
 test('production bundles contain no source markers, runtime, or task transport', async () => {
-  await build({
-    root,
-    configFile: false,
-    resolve: {
-      alias: {
-        react: resolve('node_modules/react'),
-        'react-dom': resolve('node_modules/react-dom'),
+  const previousEnvironment = process.env.NODE_ENV
+  try {
+    await build({
+      root,
+      configFile: false,
+      resolve: {
+        alias: {
+          react: resolve('node_modules/react'),
+          'react-dom': resolve('node_modules/react-dom'),
+        },
       },
-    },
-    plugins: [domino({ agent: adapter }), react()],
-    build: { outDir: join(root, 'production') },
-    logLevel: 'error',
-  })
+      plugins: [domino({ agent: adapter }), react()],
+      build: { outDir: join(root, 'production') },
+      logLevel: 'error',
+    })
+  } finally {
+    if (previousEnvironment === undefined) delete process.env.NODE_ENV
+    else process.env.NODE_ENV = previousEnvironment
+  }
   const assets = await readdir(join(root, 'production/assets'))
   const bundle = (
     await Promise.all(

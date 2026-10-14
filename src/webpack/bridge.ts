@@ -1,10 +1,11 @@
+import type { DeploymentBuild } from '../integration/deployment'
 import type { DominoSession } from '../integration/session'
 
 // Shared identity across separately bundled ESM plugins and the CJS loaders.
 export const SESSION = Symbol.for('@kibuniverse/domino/compiler-session/v1')
 export interface CompilerSession {
   active: boolean
-  session: DominoSession
+  session: DominoSession | DeploymentBuild
   runtimeEntry: string
 }
 export function getSession(compiler: object): CompilerSession | undefined {

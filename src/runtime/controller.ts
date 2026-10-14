@@ -41,6 +41,15 @@ export function createController(config: RuntimeConfig, host: HTMLElement, memor
   return {
     store,
     start: connection.start,
+    configureService: connection.configure,
+    testService: connection.testService,
+    disconnectService: connection.disconnect,
+    toggleSettings() {
+      store.update({ settingsOpen: !store.getSnapshot().settingsOpen })
+    },
+    refreshPage() {
+      location.reload()
+    },
     togglePanel() {
       if (store.getSnapshot().panelOpen) selection.closePanel()
       else selection.openPanel()

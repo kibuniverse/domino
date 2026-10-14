@@ -1,3 +1,4 @@
+import { realpath } from 'node:fs/promises'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -5,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 import type { Compiler } from 'webpack'
 
 import { DominoError, errorMessage } from '../core/types'
+import { DeploymentBuild } from '../integration/deployment'
 import { protectStorage } from '../integration/http'
 import { normalizeOptions, validateBase } from '../integration/options'
 import { assertRuntimeDependencies } from '../integration/runtime-dependencies'
@@ -38,12 +40,12 @@ export function createBundlerPlugin(options: BundlerOptions = {}) {
   const normalized = normalizeOptions(options)
   const base = validateBase(options.base ?? '/')
   let compiler: Compiler | undefined
-  let session: DominoSession | undefined
+  let session: DominoSession | DeploymentBuild | undefined
   let logger: Logger
   let active = false
   let initialized = false
   const asset = (name: string) => fileURLToPath(new URL(`./${name}`, import.meta.url))
-  const runtimeEntry = asset('runtime-webpack.mjs')
+  const runtimeEntry = asset(normalized.deployment ? 'runtime-deployed.mjs' : 'runtime-webpack.mjs')
   const bootstrap = `!!${asset('domino-bootstrap.cjs')}!${runtimeEntry}`
   const close = async () => {
     active = false
@@ -51,14 +53,14 @@ export function createBundlerPlugin(options: BundlerOptions = {}) {
       const context = getSession(compiler)
       if (context) context.active = false
     }
-    await session?.close()
+    if (session instanceof DominoSession) await session.close()
   }
   return {
     apply(target: Compiler) {
       if (compiler)
         throw new DominoError('INVALID_CONFIG', '每个 compiler 必须使用独立的 Domino 插件实例。')
       compiler = target
-      if (compiler.options.mode !== 'development') return
+      if (compiler.options.mode !== 'development' && !normalized.deployment) return
       const targetOption = compiler.options.target
       if (
         targetOption !== undefined &&
@@ -70,9 +72,12 @@ export function createBundlerPlugin(options: BundlerOptions = {}) {
         throw new DominoError('UNSUPPORTED_TARGET', 'Domino 仅支持浏览器 React 项目。')
       if (getSession(compiler))
         throw new DominoError('INVALID_CONFIG', '同一个 compiler 不能重复配置 Domino。')
-      session = new DominoSession(compiler.context, base, normalized)
+      session = normalized.deployment
+        ? new DeploymentBuild(compiler.context, base, normalized)
+        : new DominoSession(compiler.context, base, normalized)
+      active = !!normalized.deployment
       Object.defineProperty(compiler, SESSION, {
-        value: { active: false, session, runtimeEntry },
+        value: { active, session, runtimeEntry },
         configurable: true,
       })
       logger = compiler.getInfrastructureLogger('domino')
@@ -88,6 +93,32 @@ export function createBundlerPlugin(options: BundlerOptions = {}) {
         enforce: 'pre',
         use: [{ loader: asset('domino-instrument.cjs') }],
       })
+      if (normalized.deployment) {
+        if (typeof compiler.options.entry !== 'function')
+          for (const name of Object.keys(compiler.options.entry))
+            new compiler.webpack.EntryPlugin(compiler.context, bootstrap, { name }).apply(compiler)
+        compiler.hooks.beforeRun.tapPromise('domino', async () => {
+          session = new DeploymentBuild(await realpath(compiler!.context), base, normalized)
+          getSession(compiler!)!.session = session
+          const resolver = compiler!.resolverFactory.get('normal')
+          await assertRuntimeDependencies(
+            (dependency) =>
+              new Promise<boolean>((done) => {
+                resolver.resolve({}, dirname(runtimeEntry), dependency, {}, (error, result) =>
+                  done(!error && !!result),
+                )
+              }),
+          )
+        })
+        compiler.hooks.watchRun.tapPromise('domino', async () => {
+          throw new DominoError('UNSUPPORTED_BUILD', '部署编辑模式仅支持单次构建。')
+        })
+        compiler.hooks.afterEmit.tapPromise('domino', async (compilation) => {
+          if (!compilation.errors.length)
+            await (session as DeploymentBuild).writeManifest(compiler!.options.output.path!)
+        })
+        return
+      }
       compiler.hooks.watchRun.tapPromise('domino', async () => {
         if (!active) return
         try {
@@ -102,10 +133,10 @@ export function createBundlerPlugin(options: BundlerOptions = {}) {
                 }),
             )
           }
-          await session!.initialize()
+          await (session as DominoSession).initialize()
           if (!initialized) {
             initialized = true
-            session!.logReady(logger)
+            ;(session as DominoSession).logReady(logger)
           }
           for (const path of compiler!.removedFiles ?? []) session!.remove(path)
         } catch (error) {
@@ -115,7 +146,7 @@ export function createBundlerPlugin(options: BundlerOptions = {}) {
       })
       compiler.hooks.done.tap('domino', (stats) => {
         if (active)
-          session!.reportBuild(
+          (session as DominoSession).reportBuild(
             stats.hasErrors()
               ? (stats.toJson({ all: false, errors: true }).errors ?? [])
                   .map((error) => error.message)
@@ -124,7 +155,7 @@ export function createBundlerPlugin(options: BundlerOptions = {}) {
           )
       })
       compiler.hooks.failed.tap('domino', (error) => {
-        if (active) session!.reportBuild(errorMessage(error))
+        if (active) (session as DominoSession).reportBuild(errorMessage(error))
       })
       compiler.hooks.shutdown.tapPromise('domino', close)
       compiler.hooks.watchClose.tap('domino', () => {
@@ -133,7 +164,7 @@ export function createBundlerPlugin(options: BundlerOptions = {}) {
     },
     setupMiddlewares<T>(middlewares: T[], devServer: DominoDevServer): T[] {
       if (!compiler) throw new DominoError('INVALID_CONFIG', '先将同一 Domino 实例配置到 plugins。')
-      if (compiler.options.mode !== 'development') return middlewares
+      if (normalized.deployment || compiler.options.mode !== 'development') return middlewares
       if (devServer.compiler !== compiler || !devServer.server)
         throw new DominoError(
           'UNSUPPORTED_SERVER',
@@ -148,7 +179,7 @@ export function createBundlerPlugin(options: BundlerOptions = {}) {
       const server = devServer.options.server
       const type =
         typeof server === 'string' ? server : (server as { type?: string } | undefined)?.type
-      session!.attach(
+      ;(session as DominoSession).attach(
         devServer.server,
         type === 'https' || type === 'http2' || type === 'spdy',
         logger,
@@ -162,10 +193,10 @@ export function createBundlerPlugin(options: BundlerOptions = {}) {
       }
       active = true
       getSession(compiler)!.active = true
-      ;(middlewares as Array<T | Middleware>).unshift({
-        name: 'domino-storage-protection',
-        middleware: protectStorage,
-      })
+      ;(middlewares as Array<T | Middleware>).unshift(
+        { name: 'domino-storage-protection', middleware: protectStorage },
+        { name: 'domino-http', middleware: (session as DominoSession).middleware },
+      )
       return middlewares
     },
   }

@@ -1,6 +1,7 @@
 import { MotionConfig, motion, useReducedMotion } from 'motion/react'
 import { useSyncExternalStore } from 'react'
 
+import { ConnectionSettings } from './components/ConnectionSettings'
 import { InstructionForm } from './components/InstructionForm'
 import { TargetSummary } from './components/TargetSummary'
 import { TaskProgress } from './components/TaskProgress'
@@ -50,6 +51,7 @@ export function App({ controller }: { controller: RuntimeController }) {
               ×
             </button>
           </div>
+          <ConnectionSettings state={state} controller={controller} />
           <InstructionForm state={state} controller={controller} />
           <TaskProgress state={state} controller={controller} />
           <div className="notice" role="status">
@@ -60,6 +62,13 @@ export function App({ controller }: { controller: RuntimeController }) {
           </div>
           <div className="foot">
             <small className="muted connection">{state.connectionMessage}</small>
+            <button
+              className="ghost settings-toggle"
+              onClick={controller.toggleSettings}
+              aria-expanded={state.settingsOpen}
+            >
+              编辑服务
+            </button>
             <small className="muted">源码上下文可能发送至模型服务</small>
           </div>
         </motion.section>

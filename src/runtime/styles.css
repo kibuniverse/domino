@@ -627,3 +627,33 @@ select:focus-visible {
     display: none;
   }
 }
+
+.connection-settings {
+  padding: 12px;
+  margin: 8px 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+}
+.connection-settings p {
+  margin: 8px 0;
+  line-height: 1.5;
+}
+.connection-settings label {
+  display: block;
+  margin: 8px 0;
+  font-size: 12px;
+}
+.connection-settings input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 5px;
+  padding: 8px;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+.settings-toggle {
+  flex-shrink: 0;
+}

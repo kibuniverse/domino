@@ -49,6 +49,8 @@ export function TaskDetails({
   controller: RuntimeController
 }) {
   const actions = capabilities(state)
+  const pendingDeployment =
+    state.deployed && task.applied && (task.undone || task.pageUpdate !== 'received')
   return (
     <div className="task-details">
       <strong className="task-status">{taskLabel(task)}</strong>
@@ -56,12 +58,21 @@ export function TaskDetails({
         {task.source.file}:{task.source.start.line} · {task.applied ? '已应用' : '候选改动'}
       </div>
       <div className="page muted">
-        {task.pageUpdate === 'received'
-          ? '已收到浏览器模块更新确认，请核对当前页面。'
-          : task.pageUpdate === 'pending'
-            ? '页面更新待确认，请核对界面。'
-            : ''}
+        {state.deployed && task.undone
+          ? '源码已撤销。请重新构建部署并刷新页面。'
+          : task.pageUpdate === 'received'
+            ? '已收到浏览器模块更新确认，请核对当前页面。'
+            : task.pageUpdate === 'pending'
+              ? state.deployed
+                ? '源码已修改，等待重新构建部署。部署后刷新页面确认更新。'
+                : '页面更新待确认，请核对界面。'
+              : ''}
       </div>
+      {pendingDeployment && (
+        <button className="ghost refresh" onClick={controller.refreshPage}>
+          部署后刷新页面
+        </button>
+      )}
       <TaskLog logs={task.logs} visible={state.panelOpen && state.progressOpen} />
       <div className="task-error error" role="alert">
         {task.error ?? ''}

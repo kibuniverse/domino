@@ -3,6 +3,11 @@ import type { RuntimeState } from './types'
 
 export function createStore(initial: Partial<RuntimeState> = {}) {
   let state: RuntimeState = {
+    settingsOpen: false,
+    serviceUrl: '',
+    deployed: false,
+    transport: 'offline',
+    projectName: '',
     panelOpen: false,
     progressOpen: false,
     focusRequest: 0,

@@ -45,6 +45,23 @@ try {
   ])
     await link(name)
   const require = createRequire(join(consumer, 'package.json'))
+  const serviceImport = execFileSync(
+    process.execPath,
+    [
+      '--input-type=module',
+      '-e',
+      "import { startDominoService } from '@kibuniverse/domino/service'; console.log(typeof startDominoService)",
+    ],
+    { cwd: consumer, encoding: 'utf8' },
+  ).trim()
+  assert.equal(serviceImport, 'function')
+  assert.match(
+    execFileSync(process.execPath, [join(packageRoot, 'dist/cli.mjs'), '--help'], {
+      cwd: consumer,
+      encoding: 'utf8',
+    }),
+    /domino serve --config/,
+  )
   for (const name of ['webpack', 'rspack']) {
     assert.equal(typeof require(`@kibuniverse/domino/${name}`).domino, 'function')
     assert.equal(

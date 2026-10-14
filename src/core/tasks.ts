@@ -30,6 +30,7 @@ import { DominoError, TERMINAL, errorMessage } from './types'
 import type { AgentAdapter, Diagnostic, FileChange, Task, VisualContext } from './types'
 
 interface Journal {
+  fingerprint?: string
   task: Task
   before: Snapshot
   after: Snapshot
@@ -128,6 +129,11 @@ export class TaskManager extends EventEmitter {
           journal.task.applied = journal.appliedPaths.length > 0
         }
         this.journals.set(journal.task.id, journal)
+        if (typeof journal.fingerprint === 'string')
+          this.requests.set(journal.task.requestId, {
+            fingerprint: journal.fingerprint,
+            taskId: journal.task.id,
+          })
       } catch {
         /* Invalid journals never trigger writes to source files. */
       }
@@ -200,6 +206,7 @@ export class TaskManager extends EventEmitter {
       pageUpdate: 'not_applicable',
     }
     this.journals.set(task.id, {
+      fingerprint,
       task,
       before: {},
       after: {},

@@ -4,11 +4,13 @@ import { dirname, resolve } from 'node:path'
 import { defineConfig } from 'tsdown'
 import type { UserConfig } from 'tsdown'
 
-const browserRuntime = (webpack = false): UserConfig => ({
+const browserRuntime = (webpack = false, deployed = false): UserConfig => ({
   entry: {
-    [webpack ? 'runtime-webpack' : 'runtime']: webpack
-      ? 'src/runtime/index-webpack.ts'
-      : 'src/runtime/index.ts',
+    [deployed ? 'runtime-deployed' : webpack ? 'runtime-webpack' : 'runtime']: deployed
+      ? 'src/runtime/index-deployed.ts'
+      : webpack
+        ? 'src/runtime/index-webpack.ts'
+        : 'src/runtime/index.ts',
   },
   platform: 'browser',
   dts: false,
@@ -72,6 +74,8 @@ export default defineConfig([
       transform: 'src/transform/index.ts',
       codex: 'src/agents/codex.ts',
       claude: 'src/agents/claude.ts',
+      service: 'src/service/index.ts',
+      cli: 'src/service/cli.ts',
     },
     platform: 'node',
     dts: true,
@@ -101,4 +105,5 @@ export default defineConfig([
   },
   browserRuntime(),
   browserRuntime(true),
+  browserRuntime(false, true),
 ])

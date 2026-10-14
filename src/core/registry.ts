@@ -27,6 +27,17 @@ export class SourceRegistry {
       this.records.set(record.sourceId, record)
     }
   }
+  list(): SourceRecord[] {
+    return [...this.records.values()].sort((a, b) => a.sourceId.localeCompare(b.sourceId))
+  }
+  merge(records: SourceRecord[]) {
+    for (const record of records) {
+      const existing = this.records.get(record.sourceId)
+      if (existing && JSON.stringify(existing) !== JSON.stringify(record))
+        throw new DominoError('SOURCE_COLLISION', 'Source identifier collision')
+      this.records.set(record.sourceId, record)
+    }
+  }
   remove(file: string) {
     for (const id of this.files.get(file) ?? []) this.records.delete(id)
     this.files.delete(file)

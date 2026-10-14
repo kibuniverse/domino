@@ -86,6 +86,7 @@ export async function fixture(
               exclude: /node_modules/,
               loader: require.resolve('babel-loader'),
               options: {
+                envName: 'development',
                 babelrc: false,
                 configFile: false,
                 presets: [
