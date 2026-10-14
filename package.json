@@ -1,6 +1,6 @@
 {
   "name": "@kibuniverse/domino",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Select React elements in your browser and edit their source with a local coding agent.",
   "keywords": [
     "agent",
