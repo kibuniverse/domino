@@ -372,9 +372,11 @@ export class TaskManager extends EventEmitter {
     } finally {
       clearTimeout(timeout)
       this.applying = false
+      // Release the workspace lock before announcing the terminal state, so a client that
+      // reacts to "completed" can undo immediately instead of racing into WORKSPACE_BUSY.
+      this.active = undefined
       await this.publish(id)
       if (temporary) await rm(temporary, { recursive: true, force: true })
-      this.active = undefined
     }
   }
   async cancel(id: string) {
