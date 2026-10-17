@@ -18,8 +18,8 @@ importers:
         specifier: ^1.1.10
         version: 1.1.10(react@19.3.0)
       diff:
-        specifier: ^8.0.0
-        version: 8.0.4
+        specifier: ^9.0.0
+        version: 9.0.0
       magic-string:
         specifier: ^0.30.0
         version: 0.30.21
@@ -2097,8 +2097,8 @@ packages:
   detect-node@2.1.0:
     resolution: {integrity: sha512-T0NIuQpnTvFDATNuHN5roPwSBG83rFsuO+MXXH9/3N1eFbn4wcPjttvjMLEPWJ0RGUYgQE7cGgS3tNxbqCGM7g==}
 
-  diff@8.0.4:
-    resolution: {integrity: sha512-DPi0FmjiSU5EvQV0++GFDOJ9ASQUVFh5kD+OzOnYdi7n3Wpm9hWWGfB/O2blfHcMVTL5WkQXSnRiK9makhrcnw==}
+  diff@9.0.0:
+    resolution: {integrity: sha512-svtcdpS8CgJyqAjEQIXdb3OjhFVVYjzGAPO8WGCmRbrml64SPw/jJD4GoE98aR7r25A0XcgrK3F02yw9R/vhQw==}
     engines: {node: '>=0.3.1'}
 
   dns-packet@5.6.1:
@@ -5571,7 +5571,7 @@ snapshots:
 
   detect-node@2.1.0: {}
 
-  diff@8.0.4: {}
+  diff@9.0.0: {}
 
   dns-packet@5.6.1:
     dependencies:
