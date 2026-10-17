@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 
 import { parse } from '@babel/parser'
-import MagicString from 'magic-string'
+import { MagicString } from 'magic-string'
 
 import type { SourceRecord } from '../core/types'
 
