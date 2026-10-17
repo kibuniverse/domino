@@ -4,7 +4,7 @@ import { dirname, resolve } from 'node:path'
 import { defineConfig } from 'tsdown'
 import type { UserConfig } from 'tsdown'
 
-const browserRuntime = (webpack = false, deployed = false): UserConfig => ({
+const browserRuntime = (webpack = false, deployed = false, withCopy = false): UserConfig => ({
   entry: {
     [deployed ? 'runtime-deployed' : webpack ? 'runtime-webpack' : 'runtime']: deployed
       ? 'src/runtime/index-deployed.ts'
@@ -53,15 +53,21 @@ const browserRuntime = (webpack = false, deployed = false): UserConfig => ({
       },
     },
   ],
-  copy: [
-    {
-      from: ['src/runtime/vendor/react-bits/LICENSE.md', 'src/runtime/vendor/react-bits/SOURCE.md'],
-      to: 'dist/third-party/react-bits',
-    },
-  ],
+  ...(withCopy
+    ? {
+        copy: [
+          {
+            from: [
+              'src/runtime/vendor/react-bits/LICENSE.md',
+              'src/runtime/vendor/react-bits/SOURCE.md',
+            ],
+            to: 'dist/third-party/react-bits',
+          },
+        ],
+      }
+    : {}),
   outExtensions: () => ({ js: '.mjs' }),
   sourcemap: true,
-  clean: true,
   exports: false,
 })
 
@@ -103,7 +109,7 @@ export default defineConfig([
     sourcemap: true,
     exports: false,
   },
-  browserRuntime(),
+  browserRuntime(false, false, true),
   browserRuntime(true),
   browserRuntime(false, true),
 ])
